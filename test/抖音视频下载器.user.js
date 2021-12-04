@@ -107,7 +107,6 @@
 				return encodeURI(url + data + "&video-name=" + name);
 			} else {
 				return decodeURI(url).split("&video-name=");
-
 			}
 		},
 		getData: function(url) {
@@ -130,6 +129,9 @@
 			var res = [];
 			var downloadData = this.downloadLink(location.href);
 			var name = downloadData[1];
+			if (!name) {
+				return false;
+			}
 			var setData = tools.getData(downloadData[0]);
 			if (setData["download"] && setData["download"] !== "auto") {
 				res[1] = false;
@@ -138,16 +140,15 @@
 			}
 			switch (setData["fileName"]) {
 				case "videoName":
-					name = name.split("@@@")[0];
+					name = name ? name.split("@@@")[0] : "抖音视频";
 					break;
 				case "id":
-					name = name.split("@@@")[2];
+					name = name ? name.split("@@@")[2] : "抖音视频";
 					break;
 				default:
-					name = name.split("@@@")[0] + "@" + name.split("@@@")[1];
+					name = name ? name.split("@@@")[0] + "@" + name.split("@@@")[1] : "抖音视频";
 					break;
 			}
-			name = name ? name : "抖音视频";
 			res[0] = name;
 			return res;
 		},
@@ -183,51 +184,49 @@
 
 	var createBtn = {
 		share: function() {
-			if (!document.getElementById("NewDownloadBtn")) {
-				var OldTittle = document.getElementsByClassName("author-name")[0];
-				var VideoObj = document.getElementsByTagName("video")[0];
-				var VideoUrl = VideoObj.src.replace("playwm", "play");
-				VideoUrl = tools.downloadLink(VideoUrl, tools.videoName("share"));
-				if (OldTittle) {
-					var NewTittle = OldTittle.cloneNode(true);
-					var OriginHTML = "<span>" + NewTittle.innerHTML + "</span>";
-					var BtnHtml =
-						"<a  id='downloadBtn' href='javascript:void(0)' style='text-decoration: none;'><span style='font-size: 0.34667rem;line-height: 0.48rem;margin-bottom: 0.10667rem;color: rgba(255,255,255,0.9);border:2px solid rgba(255,255,255,0.9);border-radius: 4px;cursor:pointer;'>点击下载</span></a>";
-					NewTittle.innerHTML = OriginHTML + "   " + BtnHtml;
-					NewTittle.id = "NewDownloadBtn";
-					OldTittle.parentElement.insertBefore(NewTittle, OldTittle);
-					OldTittle.remove();
-				}
-				var downloadBtn = document.getElementById("downloadBtn");
-				var downloadBtnEvent = {
-					clickFn: function() {
-						if (VideoUrl) {
-							location.href = VideoUrl;
-						} else {
-							alert("正在获取视频地址，请稍后再试");
-						}
-					},
-					longPress: function() {
-						set.create();
+			var btnBox = document.getElementsByClassName("content-wrap")[0];
+			var downloadBtn = document.getElementById("NewDownloadBtn");
+			if (!btnBox || downloadBtn) {
+				return false;
+			}
+			downloadBtn = btnBox.firstChild.cloneNode(false);
+			var videoURL = document.getElementsByTagName("video")[0].src.replace("playwm", "play");
+			videoURL = tools.downloadLink(videoURL, tools.videoName("share"));
+			downloadBtn.id = "NewDownloadBtn";
+			downloadBtn.style.marginLeft = "10px";
+			downloadBtn.innerHTML =
+				"<div style='align-items:center;background:#f1f2f5;border-radius:50%;display:flex;height:46px;width:46px;justify-content:center;position:relative;'></div><span class='content-item_text'><a target='_self' style='text-decoration:none;color:#161823' href='" +
+				videoURL + "'>下载</a></span>";
+			downloadBtn.firstChild.innerHTML =
+				"<svg width='' height='42' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 42 42'><path d='M16 10h10v10h-10z M11 20L31 20 21 30z M8 30h26v2h-26z M8 25h2v5h-2z M32 25h2v5h-2z' fill='#161823' fill-opacity='0.8'></path></svg>";
+
+			var downloadBtnEvent = {
+				clickFn: function() {
+					if (videoURL) {
+						location.href = videoURL;
+					} else {
+						alert("正在获取视频地址，请稍后再试");
 					}
-				}
-				if (downloadBtn) {
-					var waitTimer = -1;
-					downloadBtn.addEventListener("touchstart", function() {
-						waitTimer = setTimeout(function() {
-							waitTimer = -1;
-							downloadBtnEvent.longPress();
-						}, 500);
-					})
-					downloadBtn.addEventListener("touchend", function() {
-						if (waitTimer !== -1) {
-							clearTimeout(waitTimer);
-							waitTimer = -1;
-							downloadBtnEvent.clickFn();
-						}
-					})
+				},
+				longPress: function() {
+					set.create();
 				}
 			}
+			var waitTimer = -1;
+			downloadBtn.addEventListener("touchstart", function() {
+				waitTimer = setTimeout(function() {
+					waitTimer = -1;
+					downloadBtnEvent.longPress();
+				}, 500);
+			})
+			downloadBtn.addEventListener("touchend", function() {
+				if (waitTimer !== -1) {
+					clearTimeout(waitTimer);
+					waitTimer = -1;
+					downloadBtnEvent.clickFn();
+				}
+			})
+			btnBox.appendChild(downloadBtn);
 		},
 		list: function(a0, i) {
 			var a01 = a0.children[1];
@@ -500,37 +499,41 @@
 			}
 			box.appendChild(btn);
 		},
-		share:function(){
-			var shareBox=document.getElementsByClassName("VYAVbHvT")[0];
-			if(shareBox&&shareBox.name!=="newShareBox"){
-				var tokenBtn=shareBox.children[1];
-				var linkBtn=tokenBtn.cloneNode(true);
-				var shortLink=shareBox.firstChild.innerText;
-				shortLink=/(http|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&:/~\+#]*[\w\-\@?^=%&/~\+#])?/g.exec(shortLink)[0];
-				linkBtn.setAttribute("data-shortLink",shortLink);
-				linkBtn.onclick=function(){
-					var copyBox=document.createElement("input");
-					copyBox.value=this.getAttribute("data-shortLink");
+		link: function() {
+			var shareBox = document.getElementsByClassName("VYAVbHvT")[0];
+			if (shareBox && shareBox.name !== "newShareBox") {
+				var tokenBtn = shareBox.children[1];
+				var linkBtn = tokenBtn.cloneNode(true);
+				var shortLink = shareBox.firstChild.innerText;
+				shortLink =
+					/(http|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&:/~\+#]*[\w\-\@?^=%&/~\+#])?/g
+					.exec(shortLink)[0];
+				linkBtn.setAttribute("data-shortLink", shortLink);
+				linkBtn.onclick = function() {
+					var copyBox = document.createElement("input");
+					copyBox.value = this.getAttribute("data-shortLink");
 					document.body.appendChild(copyBox);
 					copyBox.select();
 					document.execCommand('copy');
 					copyBox.remove();
-					var alertMsg=document.createElement("div");
-					alertMsg.setAttribute("class","mwDSfjqo cqwXIZ7n");
-					alertMsg.innerText="分享短链已复制到剪贴板";
-					setTimeout(function() {alertMsg.remove()}, 3500);
+					var alertMsg = document.createElement("div");
+					alertMsg.setAttribute("class", "mwDSfjqo cqwXIZ7n");
+					alertMsg.innerText = "分享短链已复制到剪贴板";
+					setTimeout(function() {
+						alertMsg.remove()
+					}, 3500);
 					document.getElementsByClassName("mylaiMgB")[0].appendChild(alertMsg);
 				}
-				linkBtn.innerText="短链";
-				linkBtn.id="shortLinkShareBtn";
-				linkBtn.style.marginLeft="2px";
-				tokenBtn.innerText="口令";
-				var btnWidth=Math.ceil(getComputedStyle(tokenBtn).width.replace("px",""));
-				var textWidth=Math.floor(getComputedStyle(shareBox.firstChild).width.replace("px",""));
-				shareBox.firstChild.style.width=(textWidth-btnWidth-20)+"px";
-				shareBox.lastChild.style.borderRadius="0px";
+				linkBtn.innerText = "短链";
+				linkBtn.id = "shortLinkShareBtn";
+				linkBtn.style.marginLeft = "2px";
+				tokenBtn.innerText = "口令";
+				var btnWidth = Math.ceil(getComputedStyle(tokenBtn).width.replace("px", ""));
+				var textWidth = Math.floor(getComputedStyle(shareBox.firstChild).width.replace("px", ""));
+				shareBox.firstChild.style.width = (textWidth - btnWidth - 20) + "px";
+				shareBox.lastChild.style.borderRadius = "0px";
 				shareBox.appendChild(linkBtn);
-				shareBox.name="newShareBox";
+				shareBox.name = "newShareBox";
 			}
 		}
 	};
@@ -619,12 +622,6 @@
 				createBtn.share();
 			}, 200);
 			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
-			setTimeout(function() {
-				if (Timer !== -1) {
-					clearInterval(Timer);
-					console.log("2s超时,定时器(id:" + Timer + ")关闭");
-				}
-			}, 2000);
 		},
 		home: function() {
 			init.main();
@@ -673,7 +670,7 @@
 						}
 					}
 				}
-				createBtn.share();
+				createBtn.link();
 			}, 200);
 			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},
@@ -695,7 +692,7 @@
 						createBtn.video(BtnList);
 					}
 				}
-				createBtn.share();
+				createBtn.link();
 			}, 200);
 			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},

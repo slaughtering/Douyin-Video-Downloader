@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音视频下载器
 // @namespace    http://tampermonkey.net/
-// @version      1.31.2
+// @version      1.31.3
 // @description  下载抖音APP端禁止下载的视频、下载抖音无水印视频、免登录使用大部分功能、屏蔽不必要的弹窗,适用于拥有或可安装脚本管理器的电脑或移动端浏览器,如:PC端Chrome、Edge、华为浏览器等,移动端Kiwi、Yandex、Via等
 // @author       那年那兔那些事
 // @license      MIT License
@@ -182,6 +182,18 @@
 				}
 			})
 			return resUrl;
+		},
+		toClipboard:function(data,msg){
+			var exportBox = document.createElement("input");
+			exportBox.value = data;
+			document.body.appendChild(exportBox);
+			exportBox.select();
+			document.execCommand('copy');
+			exportBox.remove();
+			if(msg!==false){
+				msg=msg?msg:"已导出到剪贴板";
+				alert(msg);
+			}
 		}
 	}
 
@@ -235,6 +247,7 @@
 			var res = [];
 			var a01 = a0.children[1];
 			var a02 = document.createElement("span");
+			a02.setAttribute("class","downloadBtn-in-list");
 			a02.innerHTML =
 				"<svg xmlns='http://www.w3.org/2000/svg' version='1.1' style='width:32px;height:32px; cursor: pointer;margin-left:5px;' fill='var(--color-text-1)' fill-opacity='0.4'><path d='M12 7h8v8h-8z M8 15L24 15 16 24z M5 24h22v2h-22z M5 20h2v4h-2z M25 20h2v4h-2z' /></svg>";
 			var a020 = a02.children[0];
@@ -263,6 +276,7 @@
 					open(thisVideoLink);
 				}
 				res = [a02, a01];
+				a02.setAttribute("massive-download-data",videoUrl);
 			}
 			return res;
 		},
@@ -460,13 +474,7 @@
 								break;
 						}
 						if (data && typeof data === "string") {
-							var exportBox = document.createElement("input");
-							exportBox.value = data;
-							document.body.appendChild(exportBox);
-							exportBox.select();
-							document.execCommand('copy');
-							exportBox.remove();
-							alert("抖音真实推流地址已导出到剪贴板");
+							tools.toClipboard(data,"抖音真实推流地址已导出到剪贴板");
 						}
 					}
 				}
@@ -481,7 +489,8 @@
 			if (document.getElementById("downloaderSettingBtn")) {
 				return false;
 			}
-			var boxClassArray = ["nxsdxGGH", "ohjo+Xk3"],
+			//nxsdxGGH:video;ohjo+Xk3:live;_9f1b1dc461877bc141b6e50012a13f5d-scss:search
+			var boxClassArray = ["nxsdxGGH", "ohjo+Xk3","_9f1b1dc461877bc141b6e50012a13f5d-scss"],
 				box;
 			for (let i in boxClassArray) {
 				box = document.getElementsByClassName(boxClassArray[i])[0];
@@ -733,7 +742,31 @@
 			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},
 		search: function() {
-			this.home();
+			init.main();
+			if (typeof jQuery !== "function") {
+				var msg = "部分功能可能无法在此浏览器上使用\n桌面端建议使用edge浏览器，移动端建议使用kiwi浏览器";
+				console.log(msg);
+				alert(msg);
+				return false;
+			}
+			Timer = setInterval(function() {
+				var a = document.getElementsByClassName("d8d25680ae6956e5aa7807679ce66b7e-scss");
+				var newBtn;
+				if (a.length !== 0) {
+					for (let i = 0; i < a.length; i++) {
+						if (a[i].name !== "newBtn") {
+							newBtn = createBtn.list(a[i], i);
+							if (newBtn[1]) {
+								a[i].insertBefore(newBtn[0], newBtn[1]);
+							} else {
+								a[i].appendChild(newBtn[0]);
+							}
+							a[i].name = "newBtn";
+						}
+					}
+				}
+			}, 200);
+			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},
 		livehome: function() {
 			init.main();
@@ -902,7 +935,7 @@
 				"fileName": "whole",
 				"diyFileName": "",
 				"download": "auto",
-				"loginPopup": "auto"
+				"loginPopup": "display"
 			},
 			"live": {
 				"undisturbWatch": "manual",
@@ -914,7 +947,7 @@
 					"chatWindow": false,
 					"edgeTool": false
 				},
-				"loginPopup": "auto",
+				"loginPopup": "display",
 				"download": "default"
 			}
 		},
@@ -924,7 +957,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.31.2"
+					"value": "v1.31.3"
 				}, {
 					"name": "视频文件名",
 					"type": "choice",
@@ -973,6 +1006,11 @@
 						"description": "遇到登录弹窗，不进行任何操作"
 					}]
 				}, {
+					"name": "批量导出",
+					"type": "text",
+					"key": "massiveExport",
+					"value": "<a style=\"text-decoration:none;\" href=\"javascript:alert('当前页不可用');\">点击导出地址</a>"
+				}, {
 					"name": "反馈建议",
 					"type": "text",
 					"key": "feedback",
@@ -989,7 +1027,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.31.2"
+					"value": "v1.31.3"
 				}, {
 					"name": "沉浸观看",
 					"type": "choice",
@@ -1225,6 +1263,28 @@
 			box.appendChild(set.createBody());
 			box.appendChild(set.createFoot());
 			page.appendChild(box);
+			var exportBtn;
+			if(/home|hot|channel|search/i.test(currentPage)){
+				exportBtn=page.querySelectorAll("div[opt-key=massiveExport]")[0];
+				exportBtn=exportBtn.getElementsByTagName("a")[0];
+				exportBtn.href="javascript:void(0)";
+				exportBtn.addEventListener("click",function(){
+					let exportData="";
+					let allDownloadBtn=document.getElementsByClassName("downloadBtn-in-list");
+					for(let i=0;i<allDownloadBtn.length;i++){
+						let data=allDownloadBtn[i].getAttribute("massive-download-data");
+						if(data){
+							exportData+=data+",";
+						}
+					}
+					tools.toClipboard(exportData,"视频地址已批量导出到剪贴板");
+				})
+			}else{
+				exportBtn=page.querySelectorAll("div[opt-key=massiveExport]")[0];
+				if(exportBtn){
+					exportBtn.parentElement.style.display="none";
+				}
+			}
 			document.body.appendChild(page);
 		},
 		createHead: function() {

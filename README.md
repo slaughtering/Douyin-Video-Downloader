@@ -32,9 +32,11 @@
 
 二、移动端(或浏览器UA为手机等移动端UA)
 
-1、打开移动端分享页URL
+1、打开移动端分享页URL（注意：这里仅仅指视频分享，直播间分享请使用pc版网页）
 
-2、点击左下角视频作者名右侧或下方的“点击下载”按钮（注意：这里仅仅指视频分享，直播间分享请使用pc版网页）
+2、点击右下角三个点打开“更多操作”
+
+3、点击下载按钮
 
 <br>
 
@@ -116,10 +118,15 @@ A4:2021.12.1后，抖音视频无法直接通过网页抓取视频链接，必�
 ![推荐页](https://user-images.githubusercontent.com/87429695/130788855-0a08659d-bce2-412c-ae24-bff209fbb33d.png)
 ![详情页](https://user-images.githubusercontent.com/87429695/130788874-be412740-a314-4616-8a86-5e9fad8b9889.png)
 ![频道](https://user-images.githubusercontent.com/87429695/130845639-ad4afe36-f594-4d3b-9994-bd5e2881a7b8.png)
-![移动端分享页](https://user-images.githubusercontent.com/87429695/131793226-9f7f02f6-ec68-4475-961e-eba5618987e7.png)
+![移动端分享页](https://user-images.githubusercontent.com/87429695/144696090-080ad982-5d45-42c5-9c64-df9132c69634.png)
 ![直播页](https://user-images.githubusercontent.com/87429695/144091848-dedbc52a-dfcc-45c5-8beb-e6fcdac77ae7.PNG)
 
 # 📕更新日志
+<版本 1.31> 2021.12.4
+* 修复移动分享页按钮问题（现在操作方法：点击右下角三个点，点击下载图标）
+* 对抖音原生的分享功能优化。原分享页面中的复制按钮名称变更为“口令”，功能不变；增加“短链”按钮，点击直接复制分享短链。
+* 优化部分页面算法
+
 <版本 1.30> 2021.12.1
 * 修复下载按钮丢失、失效、错位的问题
 * 部分页面采用jquery跨域请求（导致部分页面功能在via等浏览器上无法使用）

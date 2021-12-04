@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音视频下载器
 // @namespace    http://tampermonkey.net/
-// @version      1.30
+// @version      1.31
 // @description  下载抖音APP端禁止下载的视频、下载抖音无水印视频、免登录使用大部分功能、屏蔽不必要的弹窗,适用于拥有或可安装脚本管理器的电脑或移动端浏览器,如:PC端Chrome、Edge、华为浏览器等,移动端Kiwi、Yandex、Via等
 // @author       那年那兔那些事
 // @license      MIT License
@@ -71,7 +71,7 @@
 			switch (type) {
 				case "share":
 					title = pareObj.getElementsByClassName("desc")[0];
-					author = pareObj.getElementsByClassName("author-name").children[0];
+					author = pareObj.getElementsByClassName("author-name")[0];
 					id = location.pathname.split("video/")[1].replace("/", "");
 					break;
 				case "list":
@@ -96,9 +96,9 @@
 			if (!title || !author || !id) {
 				return "";
 			}
-			author = author.innerText.replace(/(^\s*)|(\s*$)/g, "");
+			author = author.innerText.replace(/(^\s*)|(\s*$)/g, "").replace(/^@/, "");
 			title = title.innerText.replace(/(^\s*)|(\s*$)/g, "").slice(0, 30); //限制30字符
-			return title + "@" + author + "@" + id;
+			return title + "@@@" + author + "@@@" + id;
 		},
 		downloadLink: function(url, name) {
 			if (name) {
@@ -107,7 +107,6 @@
 				return encodeURI(url + data + "&video-name=" + name);
 			} else {
 				return decodeURI(url).split("&video-name=");
-
 			}
 		},
 		getData: function(url) {
@@ -130,6 +129,9 @@
 			var res = [];
 			var downloadData = this.downloadLink(location.href);
 			var name = downloadData[1];
+			if (!name) {
+				return false;
+			}
 			var setData = tools.getData(downloadData[0]);
 			if (setData["download"] && setData["download"] !== "auto") {
 				res[1] = false;
@@ -138,16 +140,15 @@
 			}
 			switch (setData["fileName"]) {
 				case "videoName":
-					name = name.split("@")[0];
+					name = name ? name.split("@@@")[0] : "抖音视频";
 					break;
 				case "id":
-					name = name.split("@")[2];
+					name = name ? name.split("@@@")[2] : "抖音视频";
 					break;
 				default:
-					name = name.split("@")[0] + "@" + name.split("@")[1];
+					name = name ? name.split("@@@")[0] + "@" + name.split("@@@")[1] : "抖音视频";
 					break;
 			}
-			name = name ? name : "抖音视频";
 			res[0] = name;
 			return res;
 		},
@@ -183,22 +184,49 @@
 
 	var createBtn = {
 		share: function() {
-			if (!document.getElementById("NewDownloadBtn")) {
-				var OldTittle = document.getElementsByClassName("author-name")[0];
-				var VideoObj = document.getElementsByTagName("video")[0];
-				if (OldTittle && VideoObj) {
-					var NewTittle = OldTittle.cloneNode(true);
-					var VideoUrl = VideoObj.src.replace("playwm", "play");
-					VideoUrl = tools.downloadLink(VideoUrl, tools.videoName("share"));
-					var OriginHTML = "<span>" + NewTittle.innerHTML + "</span>";
-					var BtnHtml = "<a href=" + VideoUrl +
-						"target='_blank' style='text-decoration: none;'><span style='font-size: 0.34667rem;line-height: 0.48rem;margin-bottom: 0.10667rem;color: rgba(255,255,255,0.9);border:2px solid rgba(255,255,255,0.9);border-radius: 4px;cursor:pointer;'>点击下载</span></a>";
-					NewTittle.innerHTML = OriginHTML + "   " + BtnHtml;
-					NewTittle.id = "NewDownloadBtn";
-					OldTittle.parentElement.insertBefore(NewTittle, OldTittle);
-					OldTittle.remove();
+			var btnBox = document.getElementsByClassName("content-wrap")[0];
+			var downloadBtn = document.getElementById("NewDownloadBtn");
+			if (!btnBox || downloadBtn) {
+				return false;
+			}
+			downloadBtn = btnBox.firstChild.cloneNode(false);
+			var videoURL = document.getElementsByTagName("video")[0].src.replace("playwm", "play");
+			videoURL = tools.downloadLink(videoURL, tools.videoName("share"));
+			downloadBtn.id = "NewDownloadBtn";
+			downloadBtn.style.marginLeft = "10px";
+			downloadBtn.innerHTML =
+				"<div style='align-items:center;background:#f1f1f2;border-radius:50%;display:flex;height:46px;width:46px;justify-content:center;position:relative;'></div><span class='content-item_text'><a target='_self' style='text-decoration:none;color:#262832' href='" +
+				videoURL + "'>下载</a></span>";
+			downloadBtn.firstChild.innerHTML =
+				"<svg width='' height='42' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 42 42'><path d='M16 10h10v10h-10z M11 20L31 20 21 30z M8 30h26v2h-26z M8 25h2v5h-2z M32 25h2v5h-2z' fill='#161823' fill-opacity='0.8'></path></svg>";
+
+			var downloadBtnEvent = {
+				clickFn: function() {
+					if (videoURL) {
+						location.href = videoURL;
+					} else {
+						alert("正在获取视频地址，请稍后再试");
+					}
+				},
+				longPress: function() {
+					set.create();
 				}
 			}
+			var waitTimer = -1;
+			downloadBtn.addEventListener("touchstart", function() {
+				waitTimer = setTimeout(function() {
+					waitTimer = -1;
+					downloadBtnEvent.longPress();
+				}, 500);
+			})
+			downloadBtn.addEventListener("touchend", function() {
+				if (waitTimer !== -1) {
+					clearTimeout(waitTimer);
+					waitTimer = -1;
+					downloadBtnEvent.clickFn();
+				}
+			})
+			btnBox.appendChild(downloadBtn);
 		},
 		list: function(a0, i) {
 			var a01 = a0.children[1];
@@ -470,6 +498,43 @@
 				btn.children[0].setAttribute("fill", "var(--color-text-3)");
 			}
 			box.appendChild(btn);
+		},
+		link: function() {
+			var shareBox = document.getElementsByClassName("VYAVbHvT")[0];
+			if (shareBox && shareBox.name !== "newShareBox") {
+				var tokenBtn = shareBox.children[1];
+				var linkBtn = tokenBtn.cloneNode(true);
+				var shortLink = shareBox.firstChild.innerText;
+				shortLink =
+					/(http|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&:/~\+#]*[\w\-\@?^=%&/~\+#])?/g
+					.exec(shortLink)[0];
+				linkBtn.setAttribute("data-shortLink", shortLink);
+				linkBtn.onclick = function() {
+					var copyBox = document.createElement("input");
+					copyBox.value = this.getAttribute("data-shortLink");
+					document.body.appendChild(copyBox);
+					copyBox.select();
+					document.execCommand('copy');
+					copyBox.remove();
+					var alertMsg = document.createElement("div");
+					alertMsg.setAttribute("class", "mwDSfjqo cqwXIZ7n");
+					alertMsg.innerText = "分享短链已复制到剪贴板";
+					setTimeout(function() {
+						alertMsg.remove()
+					}, 3500);
+					document.getElementsByClassName("mylaiMgB")[0].appendChild(alertMsg);
+				}
+				linkBtn.innerText = "短链";
+				linkBtn.id = "shortLinkShareBtn";
+				linkBtn.style.marginLeft = "2px";
+				tokenBtn.innerText = "口令";
+				var btnWidth = Math.ceil(getComputedStyle(tokenBtn).width.replace("px", ""));
+				var textWidth = Math.floor(getComputedStyle(shareBox.firstChild).width.replace("px", ""));
+				shareBox.firstChild.style.width = (textWidth - btnWidth - 20) + "px";
+				shareBox.lastChild.style.borderRadius = "0px";
+				shareBox.appendChild(linkBtn);
+				shareBox.name = "newShareBox";
+			}
 		}
 	};
 
@@ -557,17 +622,11 @@
 				createBtn.share();
 			}, 200);
 			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
-			setTimeout(function() {
-				if (Timer !== -1) {
-					clearInterval(Timer);
-					console.log("2s超时,定时器(id:" + Timer + ")关闭");
-				}
-			}, 2000);
 		},
 		home: function() {
 			init.main();
-			if(typeof jQuery!=="function"){
-				var msg="部分功能可能无法在此浏览器上使用\n桌面端建议使用edge浏览器，移动端建议使用kiwi浏览器";
+			if (typeof jQuery !== "function") {
+				var msg = "部分功能可能无法在此浏览器上使用\n桌面端建议使用edge浏览器，移动端建议使用kiwi浏览器";
 				console.log(msg);
 				alert(msg);
 				return false;
@@ -586,8 +645,8 @@
 		},
 		recommend: function() {
 			init.main();
-			if(typeof jQuery!=="function"){
-				var msg="部分功能可能无法在此浏览器上使用\n桌面端建议使用edge浏览器，移动端建议使用kiwi浏览器";
+			if (typeof jQuery !== "function") {
+				var msg = "部分功能可能无法在此浏览器上使用\n桌面端建议使用edge浏览器，移动端建议使用kiwi浏览器";
 				console.log(msg);
 				alert(msg);
 				return false;
@@ -611,6 +670,7 @@
 						}
 					}
 				}
+				createBtn.link();
 			}, 200);
 			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},
@@ -632,14 +692,9 @@
 						createBtn.video(BtnList);
 					}
 				}
+				createBtn.link();
 			}, 200);
 			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
-			setTimeout(function() {
-				if (Timer !== -1) {
-					clearInterval(Timer);
-					console.log("2s超时,定时器(id:" + Timer + ")关闭");
-				}
-			}, 2000);
 		},
 		search: function() {
 			this.home();
@@ -677,7 +732,9 @@
 					this.others();
 					break;
 				case "appshare":
+					set.init("share");
 					this.appshare();
+					this.judge();
 					break;
 				case "home":
 					set.init();
@@ -860,7 +917,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.30"
+					"value": "v1.31"
 				}, {
 					"name": "视频文件名",
 					"type": "choice",
@@ -925,7 +982,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.30"
+					"value": "v1.31"
 				}, {
 					"name": "沉浸观看",
 					"type": "choice",
@@ -1017,6 +1074,18 @@
 		},
 		data: {},
 		opt: {},
+		styleData: {
+			"background": "var(--color-page-bg)",
+			"border": "var(--color-navigation-bg)",
+			"color": "var(--color-text-0-hover)",
+			io: function(key, value) {
+				if (value) {
+					this[key] = value;
+				} else {
+					return this[key];
+				}
+			}
+		},
 		get: function(key) {
 			if (key) {
 				return this.data[key];
@@ -1038,12 +1107,19 @@
 			localStorage.setItem("downloaderSettingData", data);
 		},
 		init: function(type) {
-			if (type === "live") {
-				this.data = tools.cloneJSON(this.baseData.live);
-				this.opt = tools.cloneJSON(this.baseOpt.live);
-			} else {
-				this.data = tools.cloneJSON(this.baseData.video);
-				this.opt = tools.cloneJSON(this.baseOpt.video);
+			switch (type) {
+				case "live":
+					this.data = tools.cloneJSON(this.baseData.live);
+					this.opt = tools.cloneJSON(this.baseOpt.live);
+					break;
+				case "share":
+					this.styleData.io("background", "grey");
+					this.styleData.io("border", "grey");
+					this.styleData.io("color", "black");
+				default:
+					this.data = tools.cloneJSON(this.baseData.video);
+					this.opt = tools.cloneJSON(this.baseOpt.video);
+					break;
 			}
 			var localData = localStorage.getItem("downloaderSettingData");
 			var newData;
@@ -1119,7 +1195,9 @@
 			page.style = "width:" + pageWidth + "px;height:" + pageHeight +
 				"px;position:fixed;left:" +
 				pageLeft + "px;top:" + pageTop +
-				"px;background:var(--color-page-bg);border-radius:20px;font-size:14px;color:var(--color-text-0-hover);border:3px solid var(--color-navigation-bg);z-index:999;";
+				"px;background:" + this.styleData.io("background") +
+				";border-radius:20px;font-size:14px;color:" + this.styleData.io("color") +
+				";border:3px solid " + this.styleData.io("border") + ";z-index:999;";
 			box.style =
 				"width:calc(100% - 40px);height:calc(100% - 40px);margin:20px;";
 			box.appendChild(set.createHead());
@@ -1146,8 +1224,8 @@
 			}
 			var msg = document.createElement("div");
 			msg.innerHTML =
-				"更多功能，请关注后续版本！<br>欢迎大家在“<a href='https://greasyfork.org/zh-CN/scripts/431344' target='_blank'>油叉</a>”或“<a href='https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader' target='_blank'>gayhub</a>”上反馈建议。";
-			msg.style = "color:red;text-decoration:none;";
+				"更多功能，请关注后续版本！<br>欢迎大家在“<a href='https://greasyfork.org/zh-CN/scripts/431344' target='_blank' style='color:red;text-decoration:none'>油叉</a>”或“<a href='https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader' target='_blank' style='color:red;text-decoration:none'>gayhub</a>”上反馈建议。";
+			msg.style = "color:red;";
 			body.appendChild(msg);
 			return body;
 		},
@@ -1164,6 +1242,7 @@
 			var opt = document.createElement("div");
 			var title = document.createElement("div");
 			var content = document.createElement("div");
+			var aTemp;
 			opt.setAttribute("class", "downloaderSettingPage-opt");
 			opt.setAttribute("opt-type", data.type);
 			title.style = "width:100px;margin:0 8px 8px 0;display:inline-block";
@@ -1172,12 +1251,17 @@
 			if (data.type === "text") {
 				content.setAttribute("opt-key", data.key);
 				content.innerHTML = data.value;
+				aTemp = content.getElementsByTagName("a");
+				for (let i = 0; i < aTemp.length; i++) {
+					aTemp[i].style.color = this.styleData.io("color");
+				}
 			} else if (data.type === "choice") {
 				content.setAttribute("opt-key", data.key);
 				var choice = data.value;
 				var choiceValue = set.get(data.key);
 				var choiceHtml =
-					"<select style='width: 100%;color: var(--color-text-0-hover);border-color: var(--color-text-0-hover);background: var(--color-page-bg);'>";
+					"<select style='width: 100%;color: " + this.styleData.io("color") + ";border-color: " +
+					this.styleData.io("color") + ";background: " + this.styleData.io("background") + ";'>";
 				for (let i in choice) {
 					choiceHtml += "<option choice-key='" + choice[i].key + "'";
 					if (choiceValue === choice[i].key) {
@@ -1195,7 +1279,7 @@
 				var check = data.value;
 				var checkValue = set.get(data.key);
 				var checkHtml =
-					"<form style='width: 100%;color: var(--color-text-0-hover);'>";
+					"<form style='width: 100%;color: " + this.styleData.io("color") + ";'>";
 				for (let i in check) {
 					checkHtml += "<div style='display:inline-block;margin-right:5px;' title='" + check[i]
 						.description + "'><input type='checkbox' value='" + check[i].key + "'";
@@ -1237,7 +1321,8 @@
 				btn.setAttribute("class", "downloaderSettingPage-btn");
 				var box = document.createElement("div");
 				box.style =
-					"margin-right: 12px; padding: 0px 10px; cursor: pointer; border: thin solid var(--color-text-0-hover); border-radius: 10px;display:inline-block";
+					"margin-right: 12px; padding: 0px 10px; cursor: pointer; border: thin solid " + this
+					.styleData.io("color") + "; border-radius: 10px;display:inline-block";
 				box.innerText = text;
 				box.onclick = fn;
 				btn.appendChild(box);

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音视频下载器
 // @namespace    http://tampermonkey.net/
-// @version      1.31
+// @version      1.32
 // @description  下载抖音APP端禁止下载的视频、下载抖音无水印视频、免登录使用大部分功能、屏蔽不必要的弹窗,适用于拥有或可安装脚本管理器的电脑或移动端浏览器,如:PC端Chrome、Edge、华为浏览器等,移动端Kiwi、Yandex、Via等
 // @author       那年那兔那些事
 // @license      MIT License
@@ -23,45 +23,45 @@
 			}
 			return UAstr;
 		},
-		identifySite: function() {
+		identifySite: function(type) {
 			var Url = window.location.href;
 			var UAstr = this.checkUA();
-			var res = "others";
+			var res = false;
 			//区分UA
-			if (UAstr === "mobile" && Url.search("douyin.com/share/video/") !== -1) {
-				res = "appshare";
-			} else if (UAstr === "pc") {
-				if (Url.search("www.iesdouyin.com/video/") !== -1) {
-					res = "detail";
-				} else if (Url.search("www.douyin.com") !== -1) {
-					if (Url.search("/discover") !== -1) {
-						res = "home";
-					} else if (location.pathname === "/") {
-						res = "recommend";
-					} else if (Url.search("/follow") !== -1) {
-						res = "follow";
-					} else if (Url.search("/hot") !== -1) {
-						res = "hot";
-					} else if (Url.search("/channel") !== -1) {
-						res = "channel";
-					} else if (Url.search("/video") !== -1) {
-						res = "detail";
-					} else if (Url.search("/search") !== -1) {
-						res = "search";
-					}
+			if (UAstr === "mobile" && Url.search("/share/video/") !== -1) {
+				res = ["appshare", "share"];
+			} else if (UAstr === "pc" && Url.search("douyin.com") !== -1) {
+				if (location.pathname === "/") {
+					res = ["recommend", "video"];
+				} else if (Url.search("/discover") !== -1) {
+					res = ["home", "video"];
+				} else if (Url.search("/follow") !== -1) {
+					res = ["follow", "video"];
+				} else if (Url.search("/hot") !== -1) {
+					res = ["hot", "video"];
+				} else if (Url.search("/channel") !== -1) {
+					res = ["channel", "video"];
+				} else if (Url.search("/video") !== -1) {
+					res = ["detail", "video"];
+				} else if (Url.search("/search") !== -1) {
+					res = ["search", "video"];
 				}
 			}
 			//不区分UA
 			if (Url.search("live.douyin.com") !== -1) {
 				if (location.pathname === "/") {
-					res = "livehome";
+					res = ["livehome", "live"];
 				} else {
-					res = "livedetail";
+					res = ["livedetail", "live"];
 				}
-			} else if (/douyinvod.com|zjcdn.com/i.test(Url) && Url.search("/video/tos/") !== -1) {
-				res = "download";
+			} else if (/(?=.*?(douyinvod|zjcdn).com)(?=.*?\/video\/tos\/)/i.test(Url)) {
+				res = ["download", "download"];
 			}
-			return res;
+			if (type === "type") {
+				return res[1];
+			} else {
+				return res[0];
+			}
 		},
 		videoName: function(type, pareObj) {
 			if (!pareObj) {
@@ -176,14 +176,29 @@
 				success: function(res) {
 					resUrl = res.item_list[0].video.play_addr.url_list[0].replace("playwm",
 						"play");
+				},
+				error: function() {
+					console.log("获取失败:" + id);
 				}
 			})
 			return resUrl;
+		},
+		toClipboard: function(data, msg) {
+			var exportBox = document.createElement("input");
+			exportBox.value = data;
+			document.body.appendChild(exportBox);
+			exportBox.select();
+			document.execCommand('copy');
+			exportBox.remove();
+			if (msg !== false) {
+				msg = msg ? msg : "已导出到剪贴板";
+				alert(msg);
+			}
 		}
 	}
 
 	var createBtn = {
-		share: function() {
+		share: function() { //#NewDownloadBtn
 			var btnBox = document.getElementsByClassName("content-wrap")[0];
 			var downloadBtn = document.getElementById("NewDownloadBtn");
 			if (!btnBox || downloadBtn) {
@@ -228,9 +243,11 @@
 			})
 			btnBox.appendChild(downloadBtn);
 		},
-		list: function(a0, i) {
+		list: function(a0, i) { //.downloadBtn-in-list
+			var res = [];
 			var a01 = a0.children[1];
 			var a02 = document.createElement("span");
+			a02.setAttribute("class", "downloadBtn-in-list");
 			a02.innerHTML =
 				"<svg xmlns='http://www.w3.org/2000/svg' version='1.1' style='width:32px;height:32px; cursor: pointer;margin-left:5px;' fill='var(--color-text-1)' fill-opacity='0.4'><path d='M12 7h8v8h-8z M8 15L24 15 16 24z M5 24h22v2h-22z M5 20h2v4h-2z M25 20h2v4h-2z' /></svg>";
 			var a020 = a02.children[0];
@@ -244,18 +261,26 @@
 				a02.onclick = function() {
 					alert("当前项为直播间，暂时无法在列表中提取真实推流地址。请先进入直播间再提取地址");
 				}
+				res = [a02, null];
 				a0.appendChild(a02);
 			} else {
 				var videoName = tools.videoName("list", a0.parentElement);
-				var videoUrl = tools.fetchUrl(videoName.split("@")[2]);
+				var videoUrl = tools.fetchUrl(videoName.split("@@@")[2]);
 				a02.onclick = function() {
-					open(tools.downloadLink(videoUrl, videoName));
+					if (!videoUrl) {
+						alert("正在获取视频地址");
+						return false;
+					}
+					var thisVideoLink = tools.downloadLink(videoUrl, videoName);
+					console.log("正在打开:" + thisVideoLink);
+					open(thisVideoLink);
 				}
-				a0.insertBefore(a02, a01);
+				res = [a02, a01];
+				a02.setAttribute("massive-download-data", videoUrl);
 			}
-			a0.name = "newBtn";
+			return res;
 		},
-		swiper: {
+		swiper: { //.newBtnDownload
 			create: function(BtnList) {
 				var newBtn = BtnList.children[1].cloneNode(true);
 				var pathLen = newBtn.children[0].children[0].children.length;
@@ -297,7 +322,7 @@
 				}
 			}
 		},
-		video: function(BtnList) {
+		video: function(BtnList) { //#newBtnDownload
 			if (!document.getElementById("newBtnDownload")) {
 				var videoURL = document.getElementById("RENDER_DATA").innerText;
 				videoURL = JSON.parse(decodeURIComponent(videoURL));
@@ -419,6 +444,7 @@
 							}
 						}
 						this.setAttribute("state-data", state);
+						localStorage.setItem("undisturbWatch", state);
 						console.log("沉浸式观看:" + state);
 					}
 				}
@@ -449,13 +475,7 @@
 								break;
 						}
 						if (data && typeof data === "string") {
-							var exportBox = document.createElement("input");
-							exportBox.value = data;
-							document.body.appendChild(exportBox);
-							exportBox.select();
-							document.execCommand('copy');
-							exportBox.remove();
-							alert("抖音真实推流地址已导出到剪贴板");
+							tools.toClipboard(data, "抖音真实推流地址已导出到剪贴板");
 						}
 					}
 				}
@@ -470,13 +490,17 @@
 			if (document.getElementById("downloaderSettingBtn")) {
 				return false;
 			}
-			var boxClassArray = ["nxsdxGGH", "ohjo+Xk3"],
+			//nxsdxGGH:video;ohjo+Xk3:live;_9f1b1dc461877bc141b6e50012a13f5d-scss:search
+			var boxClassArray = ["nxsdxGGH", "ohjo+Xk3", "_9f1b1dc461877bc141b6e50012a13f5d-scss"],
 				box;
 			for (let i in boxClassArray) {
 				box = document.getElementsByClassName(boxClassArray[i])[0];
 				if (box) {
 					break;
 				}
+			}
+			if (!box) {
+				return false;
 			}
 			var btn = document.createElement("div");
 			btn.id = "downloaderSettingBtn";
@@ -510,19 +534,24 @@
 					.exec(shortLink)[0];
 				linkBtn.setAttribute("data-shortLink", shortLink);
 				linkBtn.onclick = function() {
-					var copyBox = document.createElement("input");
-					copyBox.value = this.getAttribute("data-shortLink");
-					document.body.appendChild(copyBox);
-					copyBox.select();
-					document.execCommand('copy');
-					copyBox.remove();
 					var alertMsg = document.createElement("div");
-					alertMsg.setAttribute("class", "mwDSfjqo cqwXIZ7n");
+					var alertMsgBox;
+					if (document.getElementsByClassName("mylaiMgB")[0]) {
+						alertMsgBox = document.getElementsByClassName("mylaiMgB")[0];
+						alertMsg.setAttribute("class", "mwDSfjqo cqwXIZ7n");
+					} else if (document.getElementsByClassName("y9cs0OZJ")[0]) {
+						alertMsgBox = document.getElementsByClassName("y9cs0OZJ")[0];
+						alertMsg.setAttribute("class", "mwDSfjqo Q3BPdb-w");
+					} else {
+						tools.toClipboard(this.getAttribute("data-shortLink"), true);
+						return null;
+					}
+					tools.toClipboard(this.getAttribute("data-shortLink"), false);
 					alertMsg.innerText = "分享短链已复制到剪贴板";
 					setTimeout(function() {
 						alertMsg.remove()
 					}, 3500);
-					document.getElementsByClassName("mylaiMgB")[0].appendChild(alertMsg);
+					alertMsgBox.appendChild(alertMsg);
 				}
 				linkBtn.innerText = "短链";
 				linkBtn.id = "shortLinkShareBtn";
@@ -539,7 +568,7 @@
 	};
 
 	var init = {
-		main: function() {
+		page: function() {
 			Page = currentPage;
 			console.log("当前页判断为" + Page + "页");
 			if (Timer !== -1) {
@@ -547,6 +576,13 @@
 				console.log("已释放上一定时器(ID:" + Timer + ")");
 				Timer = -1;
 			}
+		},
+		main: function() {
+			this.page();
+			set.init();
+			createBtn.set();
+			this.edge();
+			main.judge();
 		},
 		clickFn: function() {
 			loginPopupFlag = "wait";
@@ -556,7 +592,7 @@
 			var ClassArray = ["SSV0NEur", "tk3nuzSi", "wlsrobSg", "OPE8io-h", "ib4UcBI5",
 				"q6zgm94p k-vFWw3W FDOWibym scan__button",
 				"q6zgm94p k-vFWw3W FDOWibym video-comment-high__contain__btn"
-			];
+			]; //视频顶栏（button）、推荐页评论区（span ib4UcBI5）、直播间弹幕（span OPE8io-h）
 			var BtnArray = [];
 			var LoginBtnArray, LoginBtn;
 			for (let i = 0; i < ClassArray.length; i++) {
@@ -572,6 +608,14 @@
 						LoginBtn[j].addEventListener("click", init.clickFn);
 						LoginBtn[j].name = "newLoginBtn";
 					}
+				}
+			}
+			//以防万一所有button都加上新事件
+			var allBtn = document.getElementsByTagName("button");
+			for (let i = 0; i < allBtn.length; i++) {
+				if (allBtn[i].innerText.search("登录") !== -1) {
+					allBtn[i].addEventListener("click", init.clickFn);
+					allBtn[i].name = "newLoginBtn";
 				}
 			}
 		},
@@ -600,9 +644,21 @@
 				console.log("显示" + currentPage + "页侧栏所有选项");
 			}
 		},
-		live: function() {
+		live: function(flag) {
+			if (!flag) {
+				var state = localStorage.getItem("undisturbWatch");
+				let btn = document.getElementById("undisturbWatchBtn");
+				if (state === null || state === undefined) {
+					state = btn.getAttribute("state-data");
+					localStorage.setItem("undisturbWatch", state);
+				}
+				if (state !== btn.getAttribute("state-data")) {
+					btn.click();
+				}
+				return null;
+			}
 			if (set.get("undisturbWatch") === "auto") {
-				var btn = document.getElementById("undisturbWatchBtn");
+				let btn = document.getElementById("undisturbWatchBtn");
 				if (btn) {
 					btn.click();
 				} else {
@@ -633,10 +689,17 @@
 			}
 			Timer = setInterval(function() {
 				var a = document.getElementsByClassName("_2NJWgK5p");
+				var newBtn;
 				if (a.length !== 0) {
 					for (let i = 0; i < a.length; i++) {
 						if (a[i].name !== "newBtn") {
-							createBtn.list(a[i], i);
+							newBtn = createBtn.list(a[i], i);
+							if (newBtn[1]) {
+								a[i].insertBefore(newBtn[0], newBtn[1]);
+							} else {
+								a[i].appendChild(newBtn[0]);
+							}
+							a[i].name = "newBtn";
 						}
 					}
 				}
@@ -697,22 +760,54 @@
 			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},
 		search: function() {
-			this.home();
+			init.main();
+			if (typeof jQuery !== "function") {
+				var msg = "部分功能可能无法在此浏览器上使用\n桌面端建议使用edge浏览器，移动端建议使用kiwi浏览器";
+				console.log(msg);
+				alert(msg);
+				return false;
+			}
+			Timer = setInterval(function() {
+				var a = document.getElementsByClassName("d8d25680ae6956e5aa7807679ce66b7e-scss");
+				var newBtn;
+				if (a.length !== 0) {
+					for (let i = 0; i < a.length; i++) {
+						if (a[i].name !== "newBtn") {
+							newBtn = createBtn.list(a[i], i);
+							if (newBtn[1]) {
+								a[i].insertBefore(newBtn[0], newBtn[1]);
+							} else {
+								a[i].appendChild(newBtn[0]);
+							}
+							a[i].name = "newBtn";
+						}
+					}
+				}
+			}, 200);
+			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},
 		livehome: function() {
 			init.main();
 		},
 		livedetail: function() {
 			init.main();
-			window.onload = function() {
+			var flag = true;
+			Timer = setInterval(function() {
 				var beforeBtn = document.getElementsByClassName("VPz4-306")[0];
-				var undisturbWatchBtn = createBtn.live.undisturb();
-				var downloadBtn = createBtn.live.download();
-				beforeBtn.parentElement.insertBefore(undisturbWatchBtn, beforeBtn);
-				beforeBtn.parentElement.insertBefore(downloadBtn, beforeBtn);
-				init.live();
-				console.log("抖音视频下载器(" + Page + "页)启动");
-			}
+				if (beforeBtn) {
+					if (!document.getElementById("undisturbWatchBtn")) {
+						var undisturbWatchBtn = createBtn.live.undisturb();
+						beforeBtn.parentElement.insertBefore(undisturbWatchBtn, beforeBtn);
+						init.live(flag);
+						flag = false;
+					}
+					if (!document.getElementById("newBtnDownload")) {
+						var downloadBtn = createBtn.live.download();
+						beforeBtn.parentElement.insertBefore(downloadBtn, beforeBtn);
+					}
+				}
+			}, 500);
+			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},
 		download: function() {
 			init.main();
@@ -732,69 +827,34 @@
 					this.others();
 					break;
 				case "appshare":
-					set.init("share");
 					this.appshare();
-					this.judge();
 					break;
 				case "home":
-					set.init();
-					createBtn.set();
-					init.edge();
 					this.home();
-					this.judge();
 					break;
 				case "recommend":
-					set.init();
-					createBtn.set();
-					init.edge();
 					this.recommend();
-					this.judge();
 					break;
 				case "follow":
-					set.init();
-					createBtn.set();
-					init.edge();
 					this.follow();
-					this.judge();
 					break;
 				case "hot":
-					set.init();
-					createBtn.set();
-					init.edge();
 					this.hot();
-					this.judge();
 					break;
 				case "channel":
-					set.init();
-					createBtn.set();
-					init.edge();
 					this.channel();
-					this.judge();
 					break;
 				case "detail":
-					set.init();
-					createBtn.set();
 					this.detail();
-					this.judge();
 					break;
 				case "search":
-					set.init();
-					createBtn.set();
 					this.search();
-					this.judge();
 					break;
 				case "livehome":
-					set.init("live");
-					createBtn.set();
-					init.edge();
 					this.livehome();
-					this.judge();
 					break;
 				case "livedetail":
-					set.init("live");
-					createBtn.set();
 					this.livedetail();
-					this.judge();
 					break;
 				case "download":
 					this.download();
@@ -870,20 +930,26 @@
 			}
 		},
 		judge: function() {
+			if (!/video|live/i.test(tools.identifySite("type")) || currentPage === "follow") {
+				loginPopupFlag = false;
+				return false;
+			}
+			if (loginTimer !== -1) {
+				clearInterval(loginTimer);
+				loginTimer = -1;
+			}
 			switch (set.get("loginPopup")) {
-				case "auto":
-					if (currentPage === "follow") {
-						loginPopupFlag = false;
-					} else {
-						loginPopupFlag = true;
-						init.login();
-					}
-					break;
 				case "hide":
 					loginPopupFlag = true;
 					break;
 				case "display":
 					loginPopupFlag = false;
+					break;
+				default:
+					loginPopupFlag = true;
+					loginTimer = setInterval(function() {
+						init.login();
+					}, 500);
 					break;
 			}
 		}
@@ -895,7 +961,7 @@
 				"fileName": "whole",
 				"diyFileName": "",
 				"download": "auto",
-				"loginPopup": "auto"
+				"loginPopup": "display"
 			},
 			"live": {
 				"undisturbWatch": "manual",
@@ -907,7 +973,7 @@
 					"chatWindow": false,
 					"edgeTool": false
 				},
-				"loginPopup": "auto",
+				"loginPopup": "display",
 				"download": "default"
 			}
 		},
@@ -917,7 +983,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.31"
+					"value": "v1.32"
 				}, {
 					"name": "视频文件名",
 					"type": "choice",
@@ -966,6 +1032,16 @@
 						"description": "遇到登录弹窗，不进行任何操作"
 					}]
 				}, {
+					"name": "刷新按钮",
+					"type": "text",
+					"key": "refreshDownload",
+					"value": "<a style=\"text-decoration:none;\" href=\"javascript:alert('当前页不可用');\">点击重载链接</a>"
+				}, {
+					"name": "批量导出",
+					"type": "text",
+					"key": "massiveExport",
+					"value": "<a style=\"text-decoration:none;\" href=\"javascript:alert('当前页不可用');\">点击导出地址</a>"
+				}, {
 					"name": "反馈建议",
 					"type": "text",
 					"key": "feedback",
@@ -982,7 +1058,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.31"
+					"value": "v1.32"
 				}, {
 					"name": "沉浸观看",
 					"type": "choice",
@@ -1107,19 +1183,30 @@
 			localStorage.setItem("downloaderSettingData", data);
 		},
 		init: function(type) {
+			if (!type) {
+				type = tools.identifySite("type");
+			}
 			switch (type) {
-				case "live":
-					this.data = tools.cloneJSON(this.baseData.live);
-					this.opt = tools.cloneJSON(this.baseOpt.live);
-					break;
 				case "share":
 					this.styleData.io("background", "grey");
 					this.styleData.io("border", "grey");
 					this.styleData.io("color", "black");
-				default:
+				case "video":
 					this.data = tools.cloneJSON(this.baseData.video);
 					this.opt = tools.cloneJSON(this.baseOpt.video);
 					break;
+				case "live":
+					this.data = tools.cloneJSON(this.baseData.live);
+					this.opt = tools.cloneJSON(this.baseOpt.live);
+					break;
+				case "download":
+				default:
+					this.data = null;
+					this.opt = null;
+					break;
+			}
+			if (!this.data || !this.opt) {
+				return false;
 			}
 			var localData = localStorage.getItem("downloaderSettingData");
 			var newData;
@@ -1181,6 +1268,9 @@
 			document.getElementById("downloaderSettingPage").remove();
 		},
 		create: function() {
+			if (!this.data || !this.opt) {
+				return false;
+			}
 			var page = document.createElement("div");
 			var box = document.createElement("div");
 			page.id = "downloaderSettingPage";
@@ -1204,6 +1294,7 @@
 			box.appendChild(set.createBody());
 			box.appendChild(set.createFoot());
 			page.appendChild(box);
+			this.addEvent(page);
 			document.body.appendChild(page);
 		},
 		createHead: function() {
@@ -1328,14 +1419,68 @@
 				btn.appendChild(box);
 			}
 			return btn;
+		},
+		addEvent: function(page) {
+			var exportBtn = page.querySelectorAll("div[opt-key=massiveExport]")[0];
+			if (exportBtn) {
+				if (/home|hot|channel|search/i.test(currentPage)) {
+					exportBtn = exportBtn.getElementsByTagName("a")[0];
+					exportBtn.href = "javascript:void(0)";
+					exportBtn.addEventListener("click", function() {
+						let exportData = "";
+						let allDownloadBtn = document.getElementsByClassName("downloadBtn-in-list");
+						for (let i = 0; i < allDownloadBtn.length; i++) {
+							let data = allDownloadBtn[i].getAttribute("massive-download-data");
+							if (data) {
+								exportData += data + ",";
+							}
+						}
+						tools.toClipboard(exportData, "视频地址已批量导出到剪贴板");
+					})
+				} else {
+					exportBtn.parentElement.style.display = "none";
+				}
+			}
+			//刷新
+			var refreshBtn = page.querySelectorAll("div[opt-key=refreshDownload]")[0];
+			if (refreshBtn) {
+				refreshBtn = refreshBtn.getElementsByTagName("a")[0];
+				refreshBtn.href = "javascript:void(0)";
+				refreshBtn.addEventListener("click", function() {
+					var downloadBtn = document.querySelector("#NewDownloadBtn");
+					if (downloadBtn) {
+						downloadBtn.remove();
+					}
+					downloadBtn = document.querySelector("#newBtnDownload");
+					if (downloadBtn) {
+						downloadBtn.remove();
+					}
+					downloadBtn = document.querySelectorAll(".newBtnDownload");
+					if (downloadBtn.length > 0) {
+						for (let i = 0; i < downloadBtn.length; i++) {
+							downloadBtn[i].remove();
+						}
+					}
+					downloadBtn = document.querySelectorAll(".downloadBtn-in-list");
+					if (downloadBtn.length > 0) {
+						for (let i = 0; i < downloadBtn.length; i++) {
+							let par = downloadBtn[i].parentElement;
+							downloadBtn[i].remove();
+							par.name = "";
+						}
+					}
+					alert("正在刷新下载按钮，请等待一会");
+				})
+			}
 		}
 	}
 
 	var Timer = -1;
+	var loginTimer = -1;
 	var Page = "others";
 	var currentPage = "others";
 	var pastUA = "";
-	var loginPopupFlag = true;
+	var loginPopupFlag = false;
 	var checkTimer = setInterval(function() {
 		currentPage = tools.identifySite();
 		main.jump();

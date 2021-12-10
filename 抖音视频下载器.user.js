@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         抖音视频下载器
 // @namespace    http://tampermonkey.net/
-// @version      1.32
-// @description  下载抖音APP端禁止下载的视频、下载抖音无水印视频、免登录使用大部分功能、屏蔽不必要的弹窗,适用于拥有或可安装脚本管理器的电脑或移动端浏览器,如:PC端Chrome、Edge、华为浏览器等,移动端Kiwi、Yandex、Via等
+// @version      1.33
+// @description  下载抖音APP端禁止下载的视频、下载抖音无水印视频、提取抖音直播推流地址、免登录使用大部分功能、屏蔽不必要的弹窗,适用于拥有或可安装脚本管理器的电脑或移动端浏览器,如:PC端Chrome、Edge、华为浏览器等,移动端Kiwi、Yandex、Via等
 // @author       那年那兔那些事
 // @license      MIT License
 // @include      *://*.douyin.com/*
@@ -10,6 +10,7 @@
 // @include      *://*.idouyinvod.com/*
 // @include      *://*.iesdouyin.com/*
 // @include      *://*.zjcdn.com/*
+// @include      *://*-dy.ixigua.com/*
 // @icon         https://s3.bmp.ovh/imgs/2021/08/63899211b3595b11.png
 // @require      https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js
 // ==/UserScript==
@@ -54,7 +55,7 @@
 				} else {
 					res = ["livedetail", "live"];
 				}
-			} else if (/(?=.*?(douyinvod|zjcdn).com)(?=.*?\/video\/tos\/)/i.test(Url)) {
+			} else if (/(?=.*?(douyinvod|zjcdn|ixigua).com)(?=.*?\/video\/tos\/)/i.test(Url)) {
 				res = ["download", "download"];
 			}
 			if (type === "type") {
@@ -101,44 +102,35 @@
 			return title + "@@@" + author + "@@@" + id;
 		},
 		downloadLink: function(url, name) {
-			if (name) {
-				var data = "&extraData=fileName-" + set.get("fileName") + "&&download-" + set.get(
-					"download");
-				return encodeURI(url + data + "&video-name=" + name);
-			} else {
-				return decodeURI(url).split("&video-name=");
+			if (!name) {
+				console.log("tools.downloadLink参数缺失");
+				return false;
 			}
+			let data = "&extraData-fileName=" + set.get("fileName") + "&extraData-download=" + set.get(
+				"download");
+			return encodeURI(url + data + "&extraData-videoName=" + name);
 		},
 		getData: function(url) {
-			url = url.split("&extraData=");
-			if (!url[1]) {
-				return "";
-			}
-			url = url[1].split("&&");
-			var data = {};
-			var temp;
+			url = /\?/i.test(url) ? url.split("?")[1] : url;
+			url = url.split("&");
+			let data = {};
 			for (let i in url) {
-				temp = url[i].split("-");
-				if (temp[0] && temp[1]) {
-					data[temp[0]] = temp[1];
+				if (/extraData-/i.test(url[i])) {
+					let key = url[i].split("=")[0];
+					let val = url[i].split("=")[1];
+					data[key] = decodeURI(val);
 				}
 			}
 			return data;
 		},
 		parseUrl: function() {
-			var res = [];
-			var downloadData = this.downloadLink(location.href);
-			var name = downloadData[1];
-			if (!name) {
-				return false;
+			var flag = true;
+			var extraData = this.getData(location.href);
+			if (extraData["extraData-download"] !== "auto") {
+				flag = false;
 			}
-			var setData = tools.getData(downloadData[0]);
-			if (setData["download"] && setData["download"] !== "auto") {
-				res[1] = false;
-			} else {
-				res[1] = true;
-			}
-			switch (setData["fileName"]) {
+			var name = extraData["extraData-videoName"]
+			switch (extraData["extraData-fileName"]) {
 				case "videoName":
 					name = name ? name.split("@@@")[0] : "抖音视频";
 					break;
@@ -149,8 +141,7 @@
 					name = name ? name.split("@@@")[0] + "@" + name.split("@@@")[1] : "抖音视频";
 					break;
 			}
-			res[0] = name;
-			return res;
+			return [name, flag];
 		},
 		cloneJSON: function(target) {
 			return {
@@ -182,6 +173,18 @@
 				}
 			})
 			return resUrl;
+		},
+		fetchUrl2: function(id) { //新获取高码率视频方法，还需调试
+			var ifele = document.createElement("iframe");
+			ifele.src = "https://www.douyin.com/video/" + id;
+			console.log(ifele.src);
+			ifele.style.display = "none";
+			document.body.appendChild(ifele);
+			var url = ifele.contentDocument.querySelector("script[id=RENDER_DATA]").innerText;
+			ifele.remove();
+			url = JSON.parse(decodeURIComponent(url));
+			url = url[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
+			return url;
 		},
 		toClipboard: function(data, msg) {
 			var exportBox = document.createElement("input");
@@ -323,14 +326,20 @@
 			}
 		},
 		video: function(BtnList) { //#newBtnDownload
+			var videoIdFromUrl = location.pathname;
+			videoIdFromUrl = videoIdFromUrl.slice(videoIdFromUrl.search("video/") + 6);
+			videoIdFromUrl = videoIdFromUrl ? videoIdFromUrl.split("/")[0] : "";
 			if (!document.getElementById("newBtnDownload")) {
 				var videoURL = document.getElementById("RENDER_DATA").innerText;
 				videoURL = JSON.parse(decodeURIComponent(videoURL));
-				videoURL = videoURL.C_20.aweme.detail.video.playAddr[0].src.replace("playwm", "play");
+				videoURL = videoURL[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
 				if (videoURL) {
-					videoURL = tools.downloadLink(videoURL, tools.videoName("video"));
+					var videoName = tools.videoName("video");
+					videoURL = tools.downloadLink(videoURL, videoName);
+					var videoId = videoName.split("@@@")[2];
 					var newBtn = BtnList.children[2].cloneNode(true);
 					newBtn.setAttribute("id", "newBtnDownload");
+					newBtn.setAttribute("video-data", videoId);
 					newBtn.children[0].children[0].setAttribute("d",
 						"M12 7h8v8h-8z M8 15L24 15 16 24z M5 24h22v2h-22z M5 20h2v4h-2z M25 20h2v4h-2z");
 					newBtn.children[1].setAttribute("class", "iR6dOMAO");
@@ -343,6 +352,11 @@
 						document.getElementsByTagName('video')[0].pause();
 					}
 					BtnList.appendChild(newBtn);
+				}
+			} else {
+				let btn = document.getElementById("newBtnDownload");
+				if (btn.getAttribute("video-data") !== videoIdFromUrl) {
+					location.reload();
 				}
 			}
 		},
@@ -812,12 +826,15 @@
 		download: function() {
 			init.main();
 			var data = tools.parseUrl();
+			console.log(data);
 			if (data[1]) {
 				var videoOBJ = document.getElementsByTagName('video')[0];
 				videoOBJ.pause();
 				var a = document.createElement("a");
 				a.href = videoOBJ.children[0].src;
+				console.log(videoOBJ.children[0].src);
 				a.download = data[0] + ".mp4";
+				console.log(a);
 				a.click();
 			}
 		},
@@ -983,7 +1000,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.32"
+					"value": "v1.33"
 				}, {
 					"name": "视频文件名",
 					"type": "choice",
@@ -1058,7 +1075,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.32"
+					"value": "v1.33"
 				}, {
 					"name": "沉浸观看",
 					"type": "choice",

@@ -175,16 +175,20 @@
 			return resUrl;
 		},
 		fetchUrl2: function(id) { //新获取高码率视频方法，还需调试
-			var ifele = document.createElement("iframe");
+			var ifele = document.createElement("frame");
 			ifele.src = "https://www.douyin.com/video/" + id;
 			console.log(ifele.src);
 			ifele.style.display = "none";
+			ifele.id = "newVideoIframeForFetchUrl";
 			document.body.appendChild(ifele);
-			var url = ifele.contentDocument.querySelector("script[id=RENDER_DATA]").innerText;
-			ifele.remove();
-			url = JSON.parse(decodeURIComponent(url));
-			url = url[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
-			return url;
+			$("#newVideoIframeForFetchUrl").ready(function() {
+				let ifele = $("#newVideoIframeForFetchUrl")[0];
+				let url = ifele.contentDocument.querySelector("script[id=RENDER_DATA]").innerText;
+				ifele.remove();
+				url = JSON.parse(decodeURIComponent(url));
+				url = url[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
+				return url;
+			})
 		},
 		toClipboard: function(data, msg) {
 			var exportBox = document.createElement("input");

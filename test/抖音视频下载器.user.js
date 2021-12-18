@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音视频下载器
 // @namespace    http://tampermonkey.net/
-// @version      1.33.1
+// @version      1.33.2
 // @description  下载抖音APP端禁止下载的视频、下载抖音无水印视频、提取抖音直播推流地址、免登录使用大部分功能、屏蔽不必要的弹窗,适用于拥有或可安装脚本管理器的电脑或移动端浏览器,如:PC端Chrome、Edge、华为浏览器等,移动端Kiwi、Yandex、Via等
 // @author       那年那兔那些事
 // @license      MIT License
@@ -154,41 +154,42 @@
 				...target
 			};
 		},
-		fetchUrl: function(id) {
-			if (typeof jQuery !== "function") {
-				return false;
+		fetchUrl: function(id, type) {
+			type = parseInt(type) ? type : set.get("fetchType");
+			var res = false;
+			if (typeof jQuery === "function" && type === "1") {
+				//旧方法，通过ajax请求接口获取地址
+				$.ajax({
+					url: "https://www.douyin.com/web/api/v2/aweme/iteminfo/?item_ids=" + id,
+					type: "get",
+					async: false,
+					success: function(jsonRes) {
+						try {
+							JSON.stringify(jsonRes); //防止jsonRes不是JSON格式
+						} catch (e) {
+							jsonRes = JSON.parse(jsonRes);
+						}
+						res = jsonRes.item_list[0].video.play_addr.url_list[0].replace("playwm",
+							"play");
+					},
+					error: function() {
+						console.log("获取失败:" + id);
+					}
+				});
+			} else if (type === "2") {
+				//新方法，通过XMLHttpRequest直接加载detail页获取高码率视频地址，此方法还需调试完善
+				var videoRequest = new XMLHttpRequest();
+				videoRequest.open("GET", "https://www.douyin.com/video/" + id, false); //必须异步
+				videoRequest.send();
+				let parseRes = document.createElement("div");
+				parseRes.innerHTML = videoRequest.responseText;
+				res = parseRes.querySelector("script[id=RENDER_DATA]").innerText;
+				res = JSON.parse(decodeURIComponent(res));
+				res = res[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
+			} else {
+				console.log("tools.fetchUrl(id,type)参数缺失，或参数与浏览器不匹配");
 			}
-			var url = "https://www.douyin.com/web/api/v2/aweme/iteminfo/?item_ids=" + id;
-			var resUrl;
-			$.ajax({
-				url: url,
-				type: "get",
-				async: false,
-				success: function(res) {
-					resUrl = res.item_list[0].video.play_addr.url_list[0].replace("playwm",
-						"play");
-				},
-				error: function() {
-					console.log("获取失败:" + id);
-				}
-			})
-			return resUrl;
-		},
-		fetchUrl2: function(id) { //新获取高码率视频方法，还需调试
-			var ifele = document.createElement("frame");
-			ifele.src = "https://www.douyin.com/video/" + id;
-			console.log(ifele.src);
-			ifele.style.display = "none";
-			ifele.id = "newVideoIframeForFetchUrl";
-			document.body.appendChild(ifele);
-			$("#newVideoIframeForFetchUrl").ready(function() {
-				let ifele = $("#newVideoIframeForFetchUrl")[0];
-				let url = ifele.contentDocument.querySelector("script[id=RENDER_DATA]").innerText;
-				ifele.remove();
-				url = JSON.parse(decodeURIComponent(url));
-				url = url[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
-				return url;
-			})
+			return res;
 		},
 		toClipboard: function(data, msg) {
 			var exportBox = document.createElement("input");
@@ -324,9 +325,12 @@
 					}
 				}
 				newBtn.children[0].children[0].children[0].setAttribute("d",
-					"M14 9h8v8h-8z M10 17L26 17 18 26z M7 26h22v2h-22z M7 22h2v4h-2z M27 22h2v4h-2z"
-				);
-				newBtn.children[1].innerHTML = "<a style='text-decoration : none'>下载</a>";
+					"M14 9h8v8h-8z M10 17L26 17 18 26z M7 26h22v2h-22z M7 22h2v4h-2z M27 22h2v4h-2z");
+				newBtn.children[0].onclick = function() {
+					alert("正在获取地址中，请稍后再试");
+				}
+				newBtn.children[1].innerHTML =
+					"<a href='javascript:alert('正在获取地址中，请稍后再试')' style='text-decoration : none'>下载</a>";
 				newBtn.onclick = function() {
 					document.getElementsByTagName('video')[0].pause();
 				}
@@ -340,11 +344,6 @@
 				if (newBtnBox) {
 					var newBtn = newBtnBox.children[0];
 					newBtn.setAttribute("data-id", videoID);
-					newBtn.children[0].onclick = function() {
-						alert("正在获取地址中，请稍后再试");
-					}
-					newBtn.children[1].innerHTML =
-						"<a href='javascript:alert('正在获取地址中，请稍后再试')' style='text-decoration : none'>下载</a>";
 					var videoURL = tools.fetchUrl(videoID);
 					var videoName = tools.videoName("swiper", presentObj);
 					videoURL = tools.downloadLink(videoURL, videoName);
@@ -352,18 +351,16 @@
 						open(videoURL);
 					}
 					newBtn.children[1].innerHTML = "<a href=" + videoURL +
-						" style='text-decoration : none'>下载</a>";
+						" style='text-decoration : none' target='_blank'>下载</a>";
 				}
 			}
 		},
 		video: function(BtnList) { //#newBtnDownload
-			var videoIdFromUrl = location.pathname;
-			videoIdFromUrl = videoIdFromUrl.slice(videoIdFromUrl.search("video/") + 6);
-			videoIdFromUrl = videoIdFromUrl ? videoIdFromUrl.split("/")[0] : "";
+			var videoId = location.pathname;
+			videoId = videoId.slice(videoId.search("video/") + 6);
+			videoId = videoId ? videoId.split("/")[0] : "";
 			if (!document.getElementById("newBtnDownload")) {
-				var videoURL = document.getElementById("RENDER_DATA").innerText;
-				videoURL = JSON.parse(decodeURIComponent(videoURL));
-				videoURL = videoURL[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
+				var videoURL = tools.fetchUrl(videoId);
 				if (videoURL) {
 					var videoName = tools.videoName("video");
 					videoURL = tools.downloadLink(videoURL, videoName);
@@ -387,7 +384,7 @@
 			} else {
 				let btn = document.getElementById("newBtnDownload");
 				if (btn.getAttribute("video-data") !== videoIdFromUrl) {
-					location.reload();
+					btn.remove();
 				}
 			}
 		},
@@ -1023,7 +1020,8 @@
 				"fileName": "whole",
 				"diyFileName": "",
 				"download": "auto",
-				"loginPopup": "display"
+				"loginPopup": "display",
+				"fetchType": "1"
 			},
 			"live": {
 				"undisturbWatch": "manual",
@@ -1037,7 +1035,8 @@
 				},
 				"loginPopup": "display",
 				"download": "default",
-				"shareUrl": "short"
+				"shareUrl": "short",
+				"fetchType": "1"
 			}
 		},
 		baseOpt: {
@@ -1046,7 +1045,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.33.1"
+					"value": "v1.33.2"
 				}, {
 					"name": "视频文件名",
 					"type": "choice",
@@ -1076,6 +1075,19 @@
 						"name": "手动下载",
 						"key": "manual",
 						"description": "需手动下载视频，且手动下载模式下，将关闭自动重命名。下载时需手动更改文件名"
+					}]
+				}, {
+					"name": "视频解析",
+					"type": "choice",
+					"key": "fetchType",
+					"value": [{
+						"name": "快速解析",
+						"key": "1",
+						"description": "通过抖音已有的解析接口进行快速解析获取视频。此模式解析速度快，且资源占用小，对网络要求低，但是不保证解析得到的视频的质量情况"
+					}, {
+						"name": "高码率解析",
+						"key": "2",
+						"description": "通过自定义的解析方式尽可能的获取最高分辨率/码率的视频。由于所有解析过程都在本地进行，因此此模式资源占用很高，且如果网络不佳，加载速度会很慢。"
 					}]
 				}, {
 					"name": "登录弹窗",
@@ -1121,7 +1133,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.33.1"
+					"value": "v1.33.2"
 				}, {
 					"name": "沉浸观看",
 					"type": "choice",
@@ -1497,6 +1509,7 @@
 			return btn;
 		},
 		addEvent: function(page) {
+			//导出
 			var exportBtn = page.querySelectorAll("div[opt-key=massiveExport]")[0];
 			if (exportBtn) {
 				if (/home|hot|channel|search/i.test(currentPage)) {
@@ -1547,6 +1560,11 @@
 					}
 					alert("正在刷新下载按钮，请等待一会");
 				})
+			}
+			//解析
+			var parseBtn = page.querySelectorAll("div[opt-key=fetchType]")[0];
+			if (parseBtn && currentPage === "appshare") {
+				parseBtn.parentElement.style.display = "none";
 			}
 		}
 	}

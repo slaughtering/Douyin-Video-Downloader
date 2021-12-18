@@ -122,6 +122,7 @@ A5:在2021.12.1抖音更新后，部分页面抖音视频无法直接通过网�
 * 更新日志: https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader#更新日志
 * Greasyfork: https://greasyfork.org/scripts/431344
 * Github仓库: https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader
+* 测试版本: https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader/tree/main/test
 
 # 🔍参考截图
 * 从左往右(从上往下)依次为:推荐页、详情页、频道页、移动端分享页、直播页

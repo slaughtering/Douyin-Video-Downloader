@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音视频下载器
 // @namespace    http://tampermonkey.net/
-// @version      1.33.3
+// @version      1.33.4
 // @description  下载抖音APP端禁止下载的视频、下载抖音无水印视频、提取抖音直播推流地址、免登录使用大部分功能、屏蔽不必要的弹窗,适用于拥有或可安装脚本管理器的电脑或移动端浏览器,如:PC端Chrome、Edge、华为浏览器等,移动端Kiwi、Yandex、Via等
 // @author       那年那兔那些事
 // @license      MIT License
@@ -12,7 +12,7 @@
 // @include      *://*.zjcdn.com/*
 // @include      *://*-dy.ixigua.com/*
 // @icon         https://s3.bmp.ovh/imgs/2021/08/63899211b3595b11.png
-// @require      https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js
+// @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js
 // ==/UserScript==
 
 (function() {
@@ -248,17 +248,16 @@
 			if (!btnBox || downloadBtn) {
 				return false;
 			}
-			downloadBtn = btnBox.firstChild.cloneNode(false);
+			downloadBtn = btnBox.firstChild.cloneNode(true);
 			var videoURL = document.getElementsByTagName("video")[0].src.replace("playwm", "play");
 			videoURL = tools.downloadLink(videoURL, tools.videoName("share"));
 			downloadBtn.id = "NewDownloadBtn";
 			downloadBtn.style.marginLeft = "10px";
-			downloadBtn.innerHTML =
-				"<div style='align-items:center;background:#f1f1f2;border-radius:50%;display:flex;height:46px;width:46px;justify-content:center;position:relative;'></div><span class='content-item_text'><a target='_self' style='text-decoration:none;color:#262832' href='" +
-				videoURL + "'>下载</a></span>";
-			downloadBtn.firstChild.innerHTML =
-				"<svg width='' height='42' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 42 42'><path d='M16 10h10v10h-10z M11 20L31 20 21 30z M8 30h26v2h-26z M8 25h2v5h-2z M32 25h2v5h-2z' fill='#161823' fill-opacity='0.8'></path></svg>";
-
+			downloadBtn.children[0].src =
+				"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAQcSURBVFhHzZlLTxNRFMfPbYppSGhNMAKhPgoEw2PjTtkYv4HRyEITMQrGqBv9ILoRFwZdmOhComtXGhZSd25Uogg1amIgYGibEAJNr+d/58ww0Jlh+rDML7ncx0ynf86ce++5p4rqoFAonNZanyJSF4n0Ea7TcknQv/lPFkXr2O+DB9umzXANVC10dXU9HY9v3efmaS4JfsQ6111cWrh4UeSyYjUpw+KnlVIPkskk/oHQhBbqEniWP1bm+rC5UD3LXPiz1QkOJTSfz7/kii2oUly3mcH6gaXxrAepVPKeGQkgJrUnsCKL/GX1jP81SiSwn3Uuny9s4ruk74mvRWWisCXVAe7W+pqrQika8XMFT6GWSJrl5hYXv0nyX/ATWyHUmjQlvO6mixTKpVL8WHt7K5Y2hwofZZGYOJiZ+yESxFhDTtoOO4SyU2P56eTSFJ8M4K+sNA7Oq3f5ZUTQ+VKpZdh2AceiPMPvcoW1LSIodgGzwRiMReu15qXL12ljY0N6O0kkEvTi+RPpVYteYauehFWNRcWamEARQ5Vtq8qrR/Sz7xPIC2hC8EOxtbUiRFYsBxEiAdeMKVUO3GP3H7WOmBevHqY9ZMaiCce66qIttJFRUaPhHVIfYaG7jw97UywW6fv3RadojTjaG1xz34vPVo9KK942tfRCk8v9oKmnz2juy1cZCcfA4Akav3aFMpnjMhKemoSCpaVlmnw0RZ8+fZaRYIaHh+j2rXHq6KhtFZR1tHrwhTcmxuhEf5+M+IN7cG+tIgELNUfaULx9O0Pz8wvSI0qnu2li4ir1B4jFNdyDe23wDDwrPBpbqLKD5D15OPmY3s9+kJ5FT0+G7ty5SUNDgzKyDcZwDfe4wTPwrJBg9mVhUSQF/pihGkl3dxn/c1sWbYzhWp0gJ5DlnUmxiXSrNVY7nZ0dNDE+Rn19vaagjbFGgCyLCfOsI/He6+n5C5ept7eHBgb6ZaSSXO6nqTOZo6b2Ym7uGy0sLNLrV89lJBg+9/OZj7HCfnWGm4HTEkIbSQihHHrqmVQqNWqESrrmI4uN3J5vH5/NOirnkndcInQUgRY9bZ/xnQWfQ/57fCEv3SjQhiSatLeFilWhPgpBNDTsyPQ5x2UbWQGalm/yAGe3BZ7pI1bXwrGoDbsAx6d6k5uhdqsGg+88XCrFR63uNhVC4QLsG7gRKZ1mijW5LsxyO+ngpkIogG/gA9yE2GYco7FeLvll8kCFj7qRzB5yQMhH7YwsGgdPHN0Cl/OypE2gUBtJntkpnwamxs1ymMXOYw354/nqd4Mcu+UK+o0M1eMOeM0cEek3sGIYkSCURd1Iypyta7Ir9pqLrdfP0pgkHEaaCA0Jqiw2l6DX7EXVQt0gyyIJDBy5uXj9IIbA3PxU88FvouwN0T+xHIQfcr0kzQAAAABJRU5ErkJggg==";
+			downloadBtn.children[1].innerHTML =
+				"<a target='_self' style='text-decoration:none;color:#262832' href='" + videoURL +
+				"'>下载</a>";
 			var downloadBtnEvent = {
 				clickFn: function() {
 					if (videoURL) {
@@ -465,7 +464,7 @@
 						var state = this.getAttribute("state-data");
 						if (state === "off") {
 							state = "on";
-							this.setAttribute("class", "VPz4-306");
+							this.setAttribute("class", "vtmmwltk fagGqGzK IuAQYIaJ rgdB9Lb0");
 						} else {
 							state = "off";
 							this.setAttribute("class", "vtmmwltk fagGqGzK mBGB33Vg rgdB9Lb0");
@@ -539,6 +538,13 @@
 					let btn = box.children[0].cloneNode(true);
 					btn.innerText = btn.innerText.replace("举报", "分享");
 					btn.onclick = function() {
+						if (typeof jQuery !== "function") {
+							let msg =
+								"无法启动该功能，可能的原因:\n(1)当前浏览器不支持jQuery，请使用主流浏览器并加载主流的脚本管理插件\n(2)当前远程jQuery库无法访问，请稍后再试";
+							console.log(msg);
+							alert(msg);
+							return false;
+						}
 						let shareUrl = location.href;
 						shareUrl = set.get("shareUrl") !== "short" ? shareUrl : tools.encodeShort(
 							shareUrl);
@@ -744,7 +750,8 @@
 		home: function() {
 			init.main();
 			if (typeof jQuery !== "function") {
-				var msg = "部分功能可能无法在此浏览器上使用\n桌面端建议使用edge浏览器，移动端建议使用kiwi浏览器";
+				let msg =
+					"部分功能无法启动，可能的原因:\n(1)当前浏览器不支持jQuery，请使用主流浏览器并加载主流的脚本管理插件\n(2)当前远程jQuery库无法访问，请稍后再试";
 				console.log(msg);
 				alert(msg);
 				return false;
@@ -771,7 +778,8 @@
 		recommend: function() {
 			init.main();
 			if (typeof jQuery !== "function") {
-				var msg = "部分功能可能无法在此浏览器上使用\n桌面端建议使用edge浏览器，移动端建议使用kiwi浏览器";
+				let msg =
+					"部分功能无法启动，可能的原因:\n(1)当前浏览器不支持jQuery，请使用主流浏览器并加载主流的脚本管理插件\n(2)当前远程jQuery库无法访问，请稍后再试";
 				console.log(msg);
 				alert(msg);
 				return false;
@@ -869,7 +877,7 @@
 					}
 				}
 				createBtn.live.share();
-			}, 500);
+			}, 200);
 			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},
 		download: function() {
@@ -1052,7 +1060,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.33.3"
+					"value": "v1.33.4"
 				}, {
 					"name": "视频文件名",
 					"type": "choice",
@@ -1140,7 +1148,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.33.3"
+					"value": "v1.33.4"
 				}, {
 					"name": "沉浸观看",
 					"type": "choice",
@@ -1228,7 +1236,7 @@
 					}, {
 						"name": "短链接",
 						"key": "short",
-						"description": "将直播间地址通过第三方接口转为短链接在导出"
+						"description": "将直播间地址通过第三方接口转为短链接再导出"
 					}]
 				}, {
 					"name": "反馈建议",
@@ -1570,7 +1578,7 @@
 			}
 			//解析
 			var parseBtn = page.querySelectorAll("div[opt-key=fetchType]")[0];
-			if (parseBtn && /appshare|detail/i.test(currentPage)) {
+			if (parseBtn && !/home|recommend|follow|hot|channel|search/i.test(currentPage)) {
 				parseBtn.parentElement.style.display = "none";
 			}
 		}

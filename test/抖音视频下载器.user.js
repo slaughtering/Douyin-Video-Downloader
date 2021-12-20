@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音视频下载器
 // @namespace    http://tampermonkey.net/
-// @version      1.33.2
+// @version      1.33.3
 // @description  下载抖音APP端禁止下载的视频、下载抖音无水印视频、提取抖音直播推流地址、免登录使用大部分功能、屏蔽不必要的弹窗,适用于拥有或可安装脚本管理器的电脑或移动端浏览器,如:PC端Chrome、Edge、华为浏览器等,移动端Kiwi、Yandex、Via等
 // @author       那年那兔那些事
 // @license      MIT License
@@ -157,7 +157,16 @@
 		fetchUrl: function(id, type) {
 			type = parseInt(type) ? type : set.get("fetchType");
 			var res = false;
-			if (typeof jQuery === "function" && type === "1") {
+			console.log("正在获取视频地址，视频ID=" + id);
+			if (type === "0") { //detail页面专属
+				res = document.querySelector("script[id=RENDER_DATA]").innerText;
+				res = JSON.parse(decodeURIComponent(res));
+				let awemeId = res[21].awemeId.trim();
+				if (awemeId && awemeId !== id) {
+					location.reload();
+				}
+				res = res[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
+			} else if (type === "1" && typeof jQuery === "function") {
 				//旧方法，通过ajax请求接口获取地址
 				$.ajax({
 					url: "https://www.douyin.com/web/api/v2/aweme/iteminfo/?item_ids=" + id,
@@ -360,30 +369,28 @@
 			videoId = videoId.slice(videoId.search("video/") + 6);
 			videoId = videoId ? videoId.split("/")[0] : "";
 			if (!document.getElementById("newBtnDownload")) {
-				var videoURL = tools.fetchUrl(videoId);
-				if (videoURL) {
-					var videoName = tools.videoName("video");
-					videoURL = tools.downloadLink(videoURL, videoName);
-					var videoId = videoName.split("@@@")[2];
-					var newBtn = BtnList.children[2].cloneNode(true);
-					newBtn.setAttribute("id", "newBtnDownload");
-					newBtn.setAttribute("video-data", videoId);
-					newBtn.children[0].children[0].setAttribute("d",
-						"M12 7h8v8h-8z M8 15L24 15 16 24z M5 24h22v2h-22z M5 20h2v4h-2z M25 20h2v4h-2z");
-					newBtn.children[1].setAttribute("class", "iR6dOMAO");
-					newBtn.children[1].innerHTML = "<a href=" + videoURL +
-						" style='text-decoration : none' target='_blank'>下载</a>";
-					newBtn.children[0].onclick = function() {
-						open(videoURL);
-					}
-					newBtn.onclick = function() {
-						document.getElementsByTagName('video')[0].pause();
-					}
-					BtnList.appendChild(newBtn);
+				var videoURL = tools.fetchUrl(videoId, "0");
+				var videoName = tools.videoName("video");
+				videoURL = tools.downloadLink(videoURL, videoName);
+				var videoId = videoName.split("@@@")[2];
+				var newBtn = BtnList.children[2].cloneNode(true);
+				newBtn.setAttribute("id", "newBtnDownload");
+				newBtn.setAttribute("video-data", videoId);
+				newBtn.children[0].children[0].setAttribute("d",
+					"M12 7h8v8h-8z M8 15L24 15 16 24z M5 24h22v2h-22z M5 20h2v4h-2z M25 20h2v4h-2z");
+				newBtn.children[1].setAttribute("class", "iR6dOMAO");
+				newBtn.children[1].innerHTML = "<a href=" + videoURL +
+					" style='text-decoration : none' target='_blank'>下载</a>";
+				newBtn.children[0].onclick = function() {
+					open(videoURL);
 				}
+				newBtn.onclick = function() {
+					document.getElementsByTagName('video')[0].pause();
+				}
+				BtnList.appendChild(newBtn);
 			} else {
 				let btn = document.getElementById("newBtnDownload");
-				if (btn.getAttribute("video-data") !== videoIdFromUrl) {
+				if (btn.getAttribute("video-data") !== videoId) {
 					btn.remove();
 				}
 			}
@@ -1045,7 +1052,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.33.2"
+					"value": "v1.33.3"
 				}, {
 					"name": "视频文件名",
 					"type": "choice",
@@ -1133,7 +1140,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.33.2"
+					"value": "v1.33.3"
 				}, {
 					"name": "沉浸观看",
 					"type": "choice",
@@ -1317,38 +1324,38 @@
 			set.create();
 		},
 		apply: function() {
-			var msg = "正在保存中\n应用设置需重载当前页面,是否继续应用设置?\n";
-			if (confirm(msg)) {
-				var opts = document.getElementsByClassName("downloaderSettingPage-opt");
-				var obj, key, value;
-				for (let i = 0; i < opts.length; i++) {
-					if (opts[i].getAttribute("opt-type") === "choice") {
-						obj = opts[i].getElementsByTagName("select")[0];
-						key = obj.parentElement.getAttribute("opt-key");
-						value = false;
-						for (let i = 0; i < obj.childElementCount; i++) {
-							if (obj.value === obj.children[i].value) {
-								value = obj.children[i].getAttribute("choice-key");
-								break;
-							}
+			var opts = document.getElementsByClassName("downloaderSettingPage-opt");
+			var obj, key, value;
+			for (let i = 0; i < opts.length; i++) {
+				if (opts[i].getAttribute("opt-type") === "choice") {
+					obj = opts[i].getElementsByTagName("select")[0];
+					key = obj.parentElement.getAttribute("opt-key");
+					value = false;
+					for (let i = 0; i < obj.childElementCount; i++) {
+						if (obj.value === obj.children[i].value) {
+							value = obj.children[i].getAttribute("choice-key");
+							break;
 						}
-						if (key && value) {
-							set.edit(key, value);
-						}
-					} else if (opts[i].getAttribute("opt-type") === "check") {
-						obj = opts[i].getElementsByTagName("form")[0];
-						key = obj.parentElement.getAttribute("opt-key");
-						obj = obj.getElementsByTagName("input");
-						value = set.get(key);
-						for (let i = 0; i < obj.length; i++) {
-							value[obj[i].value] = obj[i].checked;
-						}
-						if (key && value) {
-							set.edit(key, value);
-						}
+					}
+					if (key && value) {
+						set.edit(key, value);
+					}
+				} else if (opts[i].getAttribute("opt-type") === "check") {
+					obj = opts[i].getElementsByTagName("form")[0];
+					key = obj.parentElement.getAttribute("opt-key");
+					obj = obj.getElementsByTagName("input");
+					value = set.get(key);
+					for (let i = 0; i < obj.length; i++) {
+						value[obj[i].value] = obj[i].checked;
+					}
+					if (key && value) {
+						set.edit(key, value);
 					}
 				}
 				set.save(set.get());
+			}
+			var msg = "设置已保存\n点击确定刷新页面以应用所有设置\n点击取消暂不刷新页面（你也可以点击重载链接完成对下载相关设置的应用）";
+			if (confirm(msg)) {
 				location.reload();
 			}
 		},
@@ -1563,7 +1570,7 @@
 			}
 			//解析
 			var parseBtn = page.querySelectorAll("div[opt-key=fetchType]")[0];
-			if (parseBtn && currentPage === "appshare") {
+			if (parseBtn && /appshare|detail/i.test(currentPage)) {
 				parseBtn.parentElement.style.display = "none";
 			}
 		}

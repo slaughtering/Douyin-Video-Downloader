@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         抖音视频下载器
 // @namespace    http://tampermonkey.net/
-// @version      1.33
+// @version      1.34
 // @description  下载抖音APP端禁止下载的视频、下载抖音无水印视频、提取抖音直播推流地址、免登录使用大部分功能、屏蔽不必要的弹窗,适用于拥有或可安装脚本管理器的电脑或移动端浏览器,如:PC端Chrome、Edge、华为浏览器等,移动端Kiwi、Yandex、Via等
 // @author       那年那兔那些事
 // @license      MIT License
@@ -11,8 +11,9 @@
 // @include      *://*.iesdouyin.com/*
 // @include      *://*.zjcdn.com/*
 // @include      *://*-dy.ixigua.com/*
+// @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js
 // @icon         https://s3.bmp.ovh/imgs/2021/08/63899211b3595b11.png
-// @require      https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js
+
 // ==/UserScript==
 
 (function() {
@@ -154,37 +155,51 @@
 				...target
 			};
 		},
-		fetchUrl: function(id) {
-			if (typeof jQuery !== "function") {
-				return false;
-			}
-			var url = "https://www.douyin.com/web/api/v2/aweme/iteminfo/?item_ids=" + id;
-			var resUrl;
-			$.ajax({
-				url: url,
-				type: "get",
-				async: false,
-				success: function(res) {
-					resUrl = res.item_list[0].video.play_addr.url_list[0].replace("playwm",
-						"play");
-				},
-				error: function() {
-					console.log("获取失败:" + id);
+		fetchUrl: function(id, type) {
+			type = isNaN(parseInt(type)) ? set.get("fetchType"):type;
+			var res = false;
+			console.log("正在获取视频地址，视频ID=" + id);
+			if (type === "0") { //detail页面专属
+				res = document.querySelector("script[id=RENDER_DATA]").innerText;
+				res = JSON.parse(decodeURIComponent(res));
+				let awemeId = res[21].awemeId.trim();
+				if (awemeId && awemeId !== id) {
+					location.reload();
 				}
-			})
-			return resUrl;
-		},
-		fetchUrl2: function(id) { //新获取高码率视频方法，还需调试
-			var ifele = document.createElement("iframe");
-			ifele.src = "https://www.douyin.com/video/" + id;
-			console.log(ifele.src);
-			ifele.style.display = "none";
-			document.body.appendChild(ifele);
-			var url = ifele.contentDocument.querySelector("script[id=RENDER_DATA]").innerText;
-			ifele.remove();
-			url = JSON.parse(decodeURIComponent(url));
-			url = url[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
-			return url;
+				res = res[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
+			} else if (type === "1" && typeof jQuery === "function") {
+				//旧方法，通过ajax请求接口获取地址
+				$.ajax({
+					url: "https://www.douyin.com/web/api/v2/aweme/iteminfo/?item_ids=" + id,
+					type: "get",
+					async: false,
+					success: function(jsonRes) {
+						try {
+							JSON.stringify(jsonRes); //防止jsonRes不是JSON格式
+						} catch (e) {
+							jsonRes = JSON.parse(jsonRes);
+						}
+						res = jsonRes.item_list[0].video.play_addr.url_list[0].replace("playwm",
+							"play");
+					},
+					error: function() {
+						console.log("获取失败:" + id);
+					}
+				});
+			} else if (type === "2") {
+				//新方法，通过XMLHttpRequest直接加载detail页获取高码率视频地址，此方法还需调试完善
+				var videoRequest = new XMLHttpRequest();
+				videoRequest.open("GET", "https://www.douyin.com/video/" + id, false); //必须异步
+				videoRequest.send();
+				let parseRes = document.createElement("div");
+				parseRes.innerHTML = videoRequest.responseText;
+				res = parseRes.querySelector("script[id=RENDER_DATA]").innerText;
+				res = JSON.parse(decodeURIComponent(res));
+				res = res[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
+			} else {
+				console.log("tools.fetchUrl(id,type)参数缺失，或参数与浏览器不匹配");
+			}
+			return res;
 		},
 		toClipboard: function(data, msg) {
 			var exportBox = document.createElement("input");
@@ -197,6 +212,33 @@
 				msg = msg ? msg : "已导出到剪贴板";
 				alert(msg);
 			}
+		},
+		encodeShort: function(url) {
+			if (!url) {
+				console.log("tools.encodeShort(url)参数缺失");
+				return false;
+			}
+			var shortInterFace = "xnz.pub/apis.php?url="; //短链接口
+			var shortUrl;
+			var protocol = /http|https/i.test(location.protocol) ? location.protocol : "https:";
+			shortInterFace = protocol + "//" + shortInterFace.replace(/^((http|https):)?\/\//, "");
+			$.ajax({
+				type: "get",
+				url: shortInterFace + url,
+				async: false, //必须同步执行
+				error: function(xhr) {
+					alert("短链接口错误!\n" + "错误代码:" + xhr.status + "\n错误提示:" + xhr.statusText +
+						"\n请联系开发者更换短链接口");
+					shortUrl = false;
+				},
+				success: function(res) {
+					if (typeof res === "string") {
+						res = JSON.parse(res); //防止get到的数据不是json格式
+					}
+					shortUrl = "https://xnz.pub/" + res.result.shorten;
+				}
+			})
+			return shortUrl;
 		}
 	}
 
@@ -207,17 +249,16 @@
 			if (!btnBox || downloadBtn) {
 				return false;
 			}
-			downloadBtn = btnBox.firstChild.cloneNode(false);
+			downloadBtn = btnBox.firstChild.cloneNode(true);
 			var videoURL = document.getElementsByTagName("video")[0].src.replace("playwm", "play");
 			videoURL = tools.downloadLink(videoURL, tools.videoName("share"));
 			downloadBtn.id = "NewDownloadBtn";
 			downloadBtn.style.marginLeft = "10px";
-			downloadBtn.innerHTML =
-				"<div style='align-items:center;background:#f1f1f2;border-radius:50%;display:flex;height:46px;width:46px;justify-content:center;position:relative;'></div><span class='content-item_text'><a target='_self' style='text-decoration:none;color:#262832' href='" +
-				videoURL + "'>下载</a></span>";
-			downloadBtn.firstChild.innerHTML =
-				"<svg width='' height='42' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 42 42'><path d='M16 10h10v10h-10z M11 20L31 20 21 30z M8 30h26v2h-26z M8 25h2v5h-2z M32 25h2v5h-2z' fill='#161823' fill-opacity='0.8'></path></svg>";
-
+			downloadBtn.children[0].src =
+				"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACoAAAAqCAYAAADFw8lbAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAANBSURBVFhHzZlBb9MwFMfjqkXTpDaThiaQNqHduXBju/ENEGhc+BTsg7BPwYUKzrtxo7vxCRAHJiHQhpZOmqYtqvn/necsa5w0cUKbn+TZcZvk3+dn+/lNBQ2YTqd7WuvnQaAOgkDvoN6WjwR9ij8TFq17pxsbw7Hp9qC20PPzq+1+//Y9mnsoa3jEFerHKAMUF5coZ0kz2IX4sVLqaDQa8QdUprLQjMAXuG2Gest8UJ8/KLi3nuBKQqMo+ogKFlQh6qHpbA4tzWcdheHo0PSU0JPaCa0IkT+TK+N/bYkk9lkvo2h6w3fJtZNCi8pEgSXVA1z6DnMtlAr2i1zBKTQRGXxF8xalaJL8F4rE5oQmkybmcC9dpDCL4/6Tzc11Lm0pOR+FSE4czsxViCQ9aPgh7ZR7QuHUXH4eoSzFJ0v4KytNSjr0Gb/sCDqK48FT6wKpRTHD36Hi2tYRFFzAbDAGY9Gm1nz1+q203Hz+9EFaddFnsOozWtVYVKzJCdQx1MxaVYae0c/KJ5ALamLwE/QuLi4pMrccdIg1umZPqVnpHrt61BVjXg49TfvQ9HUTxLrqwAptMypqG+yQekdhN9LSUZlFy9EifJardMHvOl5C/Rdw/3u9LerzwiY/EELNkbYS9M2sf9Z5cfa7889ZjOYWqmyQ7EUVsU0sCRgoTWhRJgV+mS5PyoQ0FEmYE5hgZ1InELue9PnjEtSCSAOzLCbMS47E8+mYPE3Xz3mq/hCc+5Wd9Tz1dTDMoybjmkngLOmab7js3J5vj8/GonIu+YLSoaMIteixPePboQ8Q8h/ig0guu8CQSTRp3wkVq1J9F4JoariX6ctlSmQFWFq+yQEn9XfM9P3kMiG1qAUugPhU36DpvVs1gO/ciuP+m+TyjpxQugB8g19kSmeZYk2ui7PcJh2y5IQS+gZvQJNil7G+cr38XTvtaJHMHnNAzEftms72wcTRA7qcy5KWUqEWSZ7ZlE+LqXGzHE7CMMz55DzOoZ+HOfbEFfSxdDVxBw4zIiJ9TCtWEUkqWTSLpMxhXZNdsWsut94iS3OSIIw0Edo1yoSbS9kwu6gtNAuzLJLA4JEbxfUPMQbm5l81J0UTZTFB8A/hCTrXIQH9kwAAAABJRU5ErkJggg==";
+			downloadBtn.children[1].innerHTML =
+				"<a target='_self' style='text-decoration:none;color:#262832' href='" + videoURL +
+				"'>下载</a>";
 			var downloadBtnEvent = {
 				clickFn: function() {
 					if (videoURL) {
@@ -293,9 +334,12 @@
 					}
 				}
 				newBtn.children[0].children[0].children[0].setAttribute("d",
-					"M14 9h8v8h-8z M10 17L26 17 18 26z M7 26h22v2h-22z M7 22h2v4h-2z M27 22h2v4h-2z"
-				);
-				newBtn.children[1].innerHTML = "<a style='text-decoration : none'>下载</a>";
+					"M14 9h8v8h-8z M10 17L26 17 18 26z M7 26h22v2h-22z M7 22h2v4h-2z M27 22h2v4h-2z");
+				newBtn.children[0].onclick = function() {
+					alert("正在获取地址中，请稍后再试");
+				}
+				newBtn.children[1].innerHTML =
+					"<a href='javascript:alert('正在获取地址中，请稍后再试')' style='text-decoration : none'>下载</a>";
 				newBtn.onclick = function() {
 					document.getElementsByTagName('video')[0].pause();
 				}
@@ -309,11 +353,6 @@
 				if (newBtnBox) {
 					var newBtn = newBtnBox.children[0];
 					newBtn.setAttribute("data-id", videoID);
-					newBtn.children[0].onclick = function() {
-						alert("正在获取地址中，请稍后再试");
-					}
-					newBtn.children[1].innerHTML =
-						"<a href='javascript:alert('正在获取地址中，请稍后再试')' style='text-decoration : none'>下载</a>";
 					var videoURL = tools.fetchUrl(videoID);
 					var videoName = tools.videoName("swiper", presentObj);
 					videoURL = tools.downloadLink(videoURL, videoName);
@@ -321,42 +360,38 @@
 						open(videoURL);
 					}
 					newBtn.children[1].innerHTML = "<a href=" + videoURL +
-						" style='text-decoration : none'>下载</a>";
+						" style='text-decoration : none' target='_blank'>下载</a>";
 				}
 			}
 		},
 		video: function(BtnList) { //#newBtnDownload
-			var videoIdFromUrl = location.pathname;
-			videoIdFromUrl = videoIdFromUrl.slice(videoIdFromUrl.search("video/") + 6);
-			videoIdFromUrl = videoIdFromUrl ? videoIdFromUrl.split("/")[0] : "";
+			var videoId = location.pathname;
+			videoId = videoId.slice(videoId.search("video/") + 6);
+			videoId = videoId ? videoId.split("/")[0] : "";
 			if (!document.getElementById("newBtnDownload")) {
-				var videoURL = document.getElementById("RENDER_DATA").innerText;
-				videoURL = JSON.parse(decodeURIComponent(videoURL));
-				videoURL = videoURL[21].aweme.detail.video.playAddr[0].src.replace("playwm", "play");
-				if (videoURL) {
-					var videoName = tools.videoName("video");
-					videoURL = tools.downloadLink(videoURL, videoName);
-					var videoId = videoName.split("@@@")[2];
-					var newBtn = BtnList.children[2].cloneNode(true);
-					newBtn.setAttribute("id", "newBtnDownload");
-					newBtn.setAttribute("video-data", videoId);
-					newBtn.children[0].children[0].setAttribute("d",
-						"M12 7h8v8h-8z M8 15L24 15 16 24z M5 24h22v2h-22z M5 20h2v4h-2z M25 20h2v4h-2z");
-					newBtn.children[1].setAttribute("class", "iR6dOMAO");
-					newBtn.children[1].innerHTML = "<a href=" + videoURL +
-						" style='text-decoration : none' target='_blank'>下载</a>";
-					newBtn.children[0].onclick = function() {
-						open(videoURL);
-					}
-					newBtn.onclick = function() {
-						document.getElementsByTagName('video')[0].pause();
-					}
-					BtnList.appendChild(newBtn);
+				var videoURL = tools.fetchUrl(videoId, "0");
+				var videoName = tools.videoName("video");
+				videoURL = tools.downloadLink(videoURL, videoName);
+				var videoId = videoName.split("@@@")[2];
+				var newBtn = BtnList.children[2].cloneNode(true);
+				newBtn.setAttribute("id", "newBtnDownload");
+				newBtn.setAttribute("video-data", videoId);
+				newBtn.children[0].children[0].setAttribute("d",
+					"M12 7h8v8h-8z M8 15L24 15 16 24z M5 24h22v2h-22z M5 20h2v4h-2z M25 20h2v4h-2z");
+				newBtn.children[1].setAttribute("class", "iR6dOMAO");
+				newBtn.children[1].innerHTML = "<a href=" + videoURL +
+					" style='text-decoration : none' target='_blank'>下载</a>";
+				newBtn.children[0].onclick = function() {
+					open(videoURL);
 				}
+				newBtn.onclick = function() {
+					document.getElementsByTagName('video')[0].pause();
+				}
+				BtnList.appendChild(newBtn);
 			} else {
 				let btn = document.getElementById("newBtnDownload");
-				if (btn.getAttribute("video-data") !== videoIdFromUrl) {
-					location.reload();
+				if (btn.getAttribute("video-data") !== videoId) {
+					btn.remove();
 				}
 			}
 		},
@@ -430,12 +465,10 @@
 						var state = this.getAttribute("state-data");
 						if (state === "off") {
 							state = "on";
-							this.style.background = "var(--color-primary)";
-							this.style.color = "var(--color-anti-white)";
+							this.setAttribute("class", "vtmmwltk fagGqGzK IuAQYIaJ rgdB9Lb0");
 						} else {
 							state = "off";
-							this.style.background = "";
-							this.style.color = "";
+							this.setAttribute("class", "vtmmwltk fagGqGzK mBGB33Vg rgdB9Lb0");
 						}
 						var setData = set.get("hideList"),
 							target, extraEvent;
@@ -464,9 +497,10 @@
 				}
 				var attribute = {
 					"state-data": "off",
-					"title": "沉浸式观看模式:屏蔽不必要的窗口从而提高观看体验。按钮红色亮起表示已启动，非红色表示已关闭"
+					"title": "沉浸式观看模式:屏蔽不必要的窗口从而提高观看体验。按钮红色亮起表示未启动，非红色表示已启动"
 				}
 				var btn = this.create("沉浸观看", "undisturbWatchBtn", "", event, attribute);
+				btn.setAttribute("class", "vtmmwltk fagGqGzK mBGB33Vg rgdB9Lb0");
 				return btn;
 			},
 			download: function() {
@@ -498,6 +532,27 @@
 				}
 				var btn = this.create("提取地址", "newBtnDownload", logo, event, attribute);
 				return btn;
+			},
+			share: function() {
+				let box = document.querySelector("._2ZWxpgKz");
+				if (box && !/分享/i.test(box.innerText)) {
+					let btn = box.children[0].cloneNode(true);
+					btn.innerText = btn.innerText.replace("举报", "分享");
+					btn.onclick = function() {
+						if (typeof jQuery !== "function") {
+							let msg =
+								"无法启动该功能，可能的原因:\n(1)当前浏览器不支持jQuery，请使用主流浏览器并加载主流的脚本管理插件\n(2)当前远程jQuery库无法访问，请稍后再试";
+							console.log(msg);
+							alert(msg);
+							return false;
+						}
+						let shareUrl = location.href;
+						shareUrl = set.get("shareUrl") !== "short" ? shareUrl : tools.encodeShort(
+							shareUrl);
+						tools.toClipboard(shareUrl);
+					}
+					box.appendChild(btn);
+				}
 			}
 		},
 		set: function() {
@@ -696,7 +751,8 @@
 		home: function() {
 			init.main();
 			if (typeof jQuery !== "function") {
-				var msg = "部分功能可能无法在此浏览器上使用\n桌面端建议使用edge浏览器，移动端建议使用kiwi浏览器";
+				let msg =
+					"部分功能无法启动，可能的原因:\n(1)当前浏览器不支持jQuery，请使用主流浏览器并加载主流的脚本管理插件\n(2)当前远程jQuery库无法访问，请稍后再试";
 				console.log(msg);
 				alert(msg);
 				return false;
@@ -723,7 +779,8 @@
 		recommend: function() {
 			init.main();
 			if (typeof jQuery !== "function") {
-				var msg = "部分功能可能无法在此浏览器上使用\n桌面端建议使用edge浏览器，移动端建议使用kiwi浏览器";
+				let msg =
+					"部分功能无法启动，可能的原因:\n(1)当前浏览器不支持jQuery，请使用主流浏览器并加载主流的脚本管理插件\n(2)当前远程jQuery库无法访问，请稍后再试";
 				console.log(msg);
 				alert(msg);
 				return false;
@@ -820,7 +877,8 @@
 						beforeBtn.parentElement.insertBefore(downloadBtn, beforeBtn);
 					}
 				}
-			}, 500);
+				createBtn.live.share();
+			}, 200);
 			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},
 		download: function() {
@@ -978,7 +1036,8 @@
 				"fileName": "whole",
 				"diyFileName": "",
 				"download": "auto",
-				"loginPopup": "display"
+				"loginPopup": "display",
+				"fetchType": "1"
 			},
 			"live": {
 				"undisturbWatch": "manual",
@@ -991,7 +1050,9 @@
 					"edgeTool": false
 				},
 				"loginPopup": "display",
-				"download": "default"
+				"download": "default",
+				"shareUrl": "short",
+				"fetchType": "1"
 			}
 		},
 		baseOpt: {
@@ -1000,7 +1061,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.33"
+					"value": "v1.34"
 				}, {
 					"name": "视频文件名",
 					"type": "choice",
@@ -1014,9 +1075,9 @@
 						"key": "videoName",
 						"description": "文件自动重命名为：视频名.mp4"
 					}, {
-						"name": "数字ID",
+						"name": "视频ID",
 						"key": "id",
-						"description": "视频下载地址中，紧跟着主机名的那一串形似md5的数字为视频id。文件自动重命名为：id.mp4"
+						"description": "视频id为视频详情页地址后缀那一串数字。文件自动重命名为：id.mp4"
 					}]
 				}, {
 					"name": "视频下载",
@@ -1030,6 +1091,19 @@
 						"name": "手动下载",
 						"key": "manual",
 						"description": "需手动下载视频，且手动下载模式下，将关闭自动重命名。下载时需手动更改文件名"
+					}]
+				}, {
+					"name": "视频解析",
+					"type": "choice",
+					"key": "fetchType",
+					"value": [{
+						"name": "快速解析",
+						"key": "1",
+						"description": "通过抖音已有的解析接口进行快速解析获取视频。此模式解析速度快，且资源占用小，对网络要求低，但是不保证解析得到的视频的质量情况"
+					}, {
+						"name": "高码率解析",
+						"key": "2",
+						"description": "通过自定义的解析方式尽可能的获取最高分辨率/码率的视频。由于所有解析过程都在本地进行，因此此模式资源占用很高，且如果网络不佳，加载速度会很慢。"
 					}]
 				}, {
 					"name": "登录弹窗",
@@ -1075,7 +1149,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.33"
+					"value": "v1.34"
 				}, {
 					"name": "沉浸观看",
 					"type": "choice",
@@ -1146,11 +1220,24 @@
 					}, {
 						"name": "m3u8地址",
 						"key": "m3u8",
-						"description": "提取m3u8格式直播原画画质的推流地址。m3u8格式视频播放比较方便，但是第三方播放器播放播放直播，一般情况下延迟比官方直播间还要长几秒"
+						"description": "提取m3u8格式直播原画画质的推流地址。m3u8格式视频下载麻烦（需要专门下载器，如idm），播放方便（支持m3u8的播放器非常多），播放延迟稍高"
 					}, {
 						"name": "flv地址",
 						"key": "flv",
-						"description": "提取flv格式直播原画画质的推流地址。使用第三方播放器播放直播，一般情况下延迟比官方直播间还要短几秒（ps：一般直播视频从主播到用户那里都会有延迟）"
+						"description": "提取flv格式直播原画画质的推流地址。flv格式视频下载容易（可通过浏览器直接下载），播放比较麻烦（flv播放器比较少），播放延迟几乎为0"
+					}]
+				}, {
+					"name": "分享链接",
+					"type": "choice",
+					"key": "shareUrl",
+					"value": [{
+						"name": "原链接",
+						"key": "default",
+						"description": "直接将直播间地址（长链接）导出到剪贴板"
+					}, {
+						"name": "短链接",
+						"key": "short",
+						"description": "将直播间地址通过第三方接口转为短链接再导出"
 					}]
 				}, {
 					"name": "反馈建议",
@@ -1246,38 +1333,38 @@
 			set.create();
 		},
 		apply: function() {
-			var msg = "正在保存中\n应用设置需重载当前页面,是否继续应用设置?\n";
-			if (confirm(msg)) {
-				var opts = document.getElementsByClassName("downloaderSettingPage-opt");
-				var obj, key, value;
-				for (let i = 0; i < opts.length; i++) {
-					if (opts[i].getAttribute("opt-type") === "choice") {
-						obj = opts[i].getElementsByTagName("select")[0];
-						key = obj.parentElement.getAttribute("opt-key");
-						value = false;
-						for (let i = 0; i < obj.childElementCount; i++) {
-							if (obj.value === obj.children[i].value) {
-								value = obj.children[i].getAttribute("choice-key");
-								break;
-							}
+			var opts = document.getElementsByClassName("downloaderSettingPage-opt");
+			var obj, key, value;
+			for (let i = 0; i < opts.length; i++) {
+				if (opts[i].getAttribute("opt-type") === "choice") {
+					obj = opts[i].getElementsByTagName("select")[0];
+					key = obj.parentElement.getAttribute("opt-key");
+					value = false;
+					for (let i = 0; i < obj.childElementCount; i++) {
+						if (obj.value === obj.children[i].value) {
+							value = obj.children[i].getAttribute("choice-key");
+							break;
 						}
-						if (key && value) {
-							set.edit(key, value);
-						}
-					} else if (opts[i].getAttribute("opt-type") === "check") {
-						obj = opts[i].getElementsByTagName("form")[0];
-						key = obj.parentElement.getAttribute("opt-key");
-						obj = obj.getElementsByTagName("input");
-						value = set.get(key);
-						for (let i = 0; i < obj.length; i++) {
-							value[obj[i].value] = obj[i].checked;
-						}
-						if (key && value) {
-							set.edit(key, value);
-						}
+					}
+					if (key && value) {
+						set.edit(key, value);
+					}
+				} else if (opts[i].getAttribute("opt-type") === "check") {
+					obj = opts[i].getElementsByTagName("form")[0];
+					key = obj.parentElement.getAttribute("opt-key");
+					obj = obj.getElementsByTagName("input");
+					value = set.get(key);
+					for (let i = 0; i < obj.length; i++) {
+						value[obj[i].value] = obj[i].checked;
+					}
+					if (key && value) {
+						set.edit(key, value);
 					}
 				}
 				set.save(set.get());
+			}
+			var msg = "设置已保存\n点击确定刷新页面以应用所有设置\n点击取消暂不刷新页面（你也可以点击重载链接完成对下载相关设置的应用）";
+			if (confirm(msg)) {
 				location.reload();
 			}
 		},
@@ -1381,8 +1468,8 @@
 				choiceHtml += "</select>";
 				content.innerHTML = choiceHtml;
 			} else if (data.type === "check") {
-				content.style.width = "100%";
-				content.style.display = "";
+				content.style.width = "calc(100% - 120px)";
+				content.style.display = "inline-flex";
 				content.setAttribute("opt-key", data.key);
 				var check = data.value;
 				var checkValue = set.get(data.key);
@@ -1438,6 +1525,7 @@
 			return btn;
 		},
 		addEvent: function(page) {
+			//导出
 			var exportBtn = page.querySelectorAll("div[opt-key=massiveExport]")[0];
 			if (exportBtn) {
 				if (/home|hot|channel|search/i.test(currentPage)) {
@@ -1488,6 +1576,11 @@
 					}
 					alert("正在刷新下载按钮，请等待一会");
 				})
+			}
+			//解析
+			var parseBtn = page.querySelectorAll("div[opt-key=fetchType]")[0];
+			if (parseBtn && !/home|recommend|follow|hot|channel|search/i.test(currentPage)) {
+				parseBtn.parentElement.style.display = "none";
 			}
 		}
 	}

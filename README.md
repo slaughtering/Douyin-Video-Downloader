@@ -9,13 +9,11 @@
 
 * 本脚本能展开页面左侧侧栏所有选项,屏蔽一些非必要的弹窗(强制登录页面、登录提示、满意度调查等)
 
-* 本脚本适用于PC端Chrome、Edge、华为浏览器(HWbrowser)等,移动端Kiwi、Yandex、Via等(1.30版本开始，由于部分功能使用了jquery实现跨域，这部分功能可能在via上无法使用)
+* 本本脚本适用于PC端Chrome、Edge、华为浏览器(HWbrowser)等,移动端Kiwi、Yandex、Nightly、Iceraven等
 
-* 本脚本仅供学习交流使用,切勿商用！！！本人只是js爱好者，不是专业开发者，如果有大佬想帮忙优化、更新代码可以通过github联系我。
+* 本脚本仅供学习交流使用,切勿商用！！！本人只是js爱好者，不是专业开发者，如果有大佬想帮忙优化、更新代码可以通过github联系我
 
-* 注意！！！由于最新抖音网页版的限制，部分功能无法在via浏览器等无法使用油猴/篡改猴/暴力猴的浏览器上使用（2021.12.1）
-
-* 最近在研究一个新的dy视频地址获取方法，能获取1080p的高码率视频，但是现在这个方法兼容性问题有点多。再加上要年底了，事情有点多，所以更新会有点慢。
+* 注意！！！2021.12月以来，抖音网页版增加了严格的csp限制，本脚本将暂时不再支持via浏览器、adguard等无法使用油猴/篡改猴/暴力猴的浏览器/app
 
 # 📖使用流程
 一、电脑端(或浏览器UA为电脑UA):
@@ -120,9 +118,14 @@ A5:在2021.12.1抖音更新后，部分页面抖音视频无法直接通过网�
 
 # 🌎相关地址
 * 更新日志: https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader#更新日志
-* Greasyfork: https://greasyfork.org/scripts/431344
-* Github仓库: https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader
-* 测试版本: https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader/tree/main/test
+* Greasyfork仓库: https://greasyfork.org/scripts/431344
+* Github项目仓库: https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader
+* Greasyfork安装：https://greasyfork.org/scripts/431344-抖音视频下载器.user.js
+* Github正式版安装：https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader/raw/main/抖音视频下载器.user.js
+* Github测试版安装: https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader/raw/main/test/抖音视频下载器.user.js
+* (镜像)Github项目仓库: https://hub.fastgit.org/IcedWatermelonJuice/Douyin-Video-Downloader
+* (镜像)Github正式版安装: https://hub.fastgit.org/IcedWatermelonJuice/Douyin-Video-Downloader/raw/main/抖音视频下载器.user.js
+* (镜像)Github测试版安装: https://hub.fastgit.org/IcedWatermelonJuice/Douyin-Video-Downloader/raw/main/test/抖音视频下载器.user.js
 
 # 🔍参考截图
 * 从左往右(从上往下)依次为:推荐页、详情页、频道页、移动端分享页、直播页

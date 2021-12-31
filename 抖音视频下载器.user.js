@@ -1,13 +1,11 @@
 // ==UserScript==
 // @name         抖音视频下载器
 // @namespace    http://tampermonkey.net/
-// @version      1.35
+// @version      1.35.2
 // @description  下载抖音APP端禁止下载的视频、下载抖音无水印视频、提取抖音直播推流地址、免登录使用大部分功能、屏蔽不必要的弹窗,适用于拥有或可安装脚本管理器的电脑或移动端浏览器,如:PC端Chrome、Edge、华为浏览器等,移动端Kiwi、Yandex、Nightly、Iceraven等
 // @author       那年那兔那些事
 // @license      MIT License
 // @include      *://*.douyin.com/*
-// @include      *://*.douyinvod.com/*
-// @include      *://*.idouyinvod.com/*
 // @include      *://*.iesdouyin.com/*
 // @require      https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js
 // @grant        GM_download
@@ -18,7 +16,7 @@
 
 (function() {
 	//常量
-	const video_vid = "https://aweme.snssdk.com/aweme/v1/playwm/?video_id={vid}&ratio={ratio}&line=0";
+	const video_vid = "https://www.douyin.com/aweme/v1/play/?video_id={vid}&ratio={ratio}&line=0";
 	const video_data = "https://www.douyin.com/web/api/v2/aweme/iteminfo/?item_ids={id}";
 	const btn_class = "downloaderBtn";
 	const liveBtn_class = "downloaderliveBtn";
@@ -307,12 +305,9 @@
 			var newBtnBox = BtnList.getElementsByClassName(btn_class)[0];
 			if (!newBtnBox) {
 				let newBtn = BtnList.children[1].cloneNode(true);
-				let pathLen = newBtn.children[0].children[0].children.length;
-				if (pathLen > 1) {
-					for (let i = 1; i < pathLen; i++) {
-						newBtn.children[0].children[0].children[i].remove();
-					}
-				}
+				let pathEle=newBtn.children[0].children[0].children[0].cloneNode(true);
+				newBtn.children[0].children[0].innerHTML="";
+				newBtn.children[0].children[0].appendChild(pathEle);
 				newBtn.children[0].children[0].children[0].setAttribute("d",
 					"M14 9h8v8h-8z M10 17L26 17 18 26z M7 26h22v2h-22z M7 22h2v4h-2z M27 22h2v4h-2z");
 				newBtn.children[1].innerHTML = "下载";
@@ -996,7 +991,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.35"
+					"value": "v1.35.2"
 				}, {
 					"name": "视频文件名",
 					"type": "choice",
@@ -1092,7 +1087,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.35"
+					"value": "v1.35.2"
 				}, {
 					"name": "沉浸观看",
 					"type": "choice",
@@ -1306,9 +1301,9 @@
 				}
 				set.save(set.get());
 			}
-			var msg = "设置已保存\n点击确定刷新页面以应用所有设置\n点击取消暂不刷新页面（你也可以点击重载链接完成对下载相关设置的应用）";
+			var msg = "是否立即刷新下载按钮以应用设置？";
 			if (confirm(msg)) {
-				location.reload();
+				set.extraEventList.refresh(true);
 			}
 		},
 		close: function() {
@@ -1474,18 +1469,7 @@
 				exportBtn = exportBtn.getElementsByTagName("a")[0];
 				exportBtn.href = "javascript:void(0)";
 				exportBtn.addEventListener("click", function() {
-					let exportData = "";
-					let allDownloadBtn = document.getElementsByClassName(btn_class);
-					for (let i = 0; i < allDownloadBtn.length; i++) {
-						let data = allDownloadBtn[i].getAttribute("download-data");
-						if (data) {
-							data=tools.parseData(data);
-							data=data.url;
-							data = (i + 1) !== allDownloadBtn.length ? (data + ",") : data;
-							exportData += data;
-						}
-					}
-					tools.toClipboard(exportData, "视频地址已批量导出到剪贴板");
+					set.extraEventList.export();
 				})
 			}
 			//刷新
@@ -1494,12 +1478,33 @@
 				refreshBtn = refreshBtn.getElementsByTagName("a")[0];
 				refreshBtn.href = "javascript:void(0)";
 				refreshBtn.addEventListener("click", function() {
-					alert("刷新下载按钮需要一定的时间，点击确定开始重载链接");
-					var downloadBtn = document.querySelectorAll("." + btn_class);
-					for (let i = 0; i < downloadBtn.length; i++) {
-						downloadBtn[i].remove();
-					}
+					set.extraEventList.refresh();
 				})
+			}
+		},
+		extraEventList:{
+			export:function(){
+				let exportData = "";
+				let allDownloadBtn = document.getElementsByClassName(btn_class);
+				for (let i = 0; i < allDownloadBtn.length; i++) {
+					let data = allDownloadBtn[i].getAttribute("download-data");
+					if (data) {
+						data=tools.parseData(data);
+						data=data.url;
+						data = (i + 1) !== allDownloadBtn.length ? (data + ",") : data;
+						exportData += data;
+					}
+				}
+				tools.toClipboard(exportData, "视频地址已批量导出到剪贴板");
+			},
+			refresh:function(noAlert){
+				if(!noAlert){
+					alert("刷新下载按钮需要一定的时间，点击确定开始重载链接");
+				}
+				var downloadBtn = document.querySelectorAll("." + btn_class);
+				for (let i = 0; i < downloadBtn.length; i++) {
+					downloadBtn[i].remove();
+				}
 			}
 		}
 	}

@@ -123,6 +123,7 @@ A5:在2021.12.1抖音更新后，部分页面抖音视频无法直接通过网�
 * Greasyfork安装：https://greasyfork.org/scripts/431344-抖音视频下载器.user.js
 * Github正式版安装：https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader/raw/main/抖音视频下载器.user.js
 * Github测试版安装: https://github.com/IcedWatermelonJuice/Douyin-Video-Downloader/raw/main/test/抖音视频下载器.user.js
+* (镜像)更新日志: https://hub.fastgit.org/IcedWatermelonJuice/Douyin-Video-Downloader#更新日志
 * (镜像)Github项目仓库: https://hub.fastgit.org/IcedWatermelonJuice/Douyin-Video-Downloader
 * (镜像)Github正式版安装: https://hub.fastgit.org/IcedWatermelonJuice/Douyin-Video-Downloader/raw/main/抖音视频下载器.user.js
 * (镜像)Github测试版安装: https://hub.fastgit.org/IcedWatermelonJuice/Douyin-Video-Downloader/raw/main/test/抖音视频下载器.user.js

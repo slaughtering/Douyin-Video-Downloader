@@ -1,13 +1,13 @@
 // ==UserScript==
 // @name         抖音视频下载器
 // @namespace    http://tampermonkey.net/
-// @version      1.36.2
+// @version      1.37
 // @description  下载抖音APP端禁止下载的视频、下载抖音无水印视频、提取抖音直播推流地址、免登录使用大部分功能、屏蔽不必要的弹窗,适用于拥有或可安装脚本管理器的电脑或移动端浏览器,如:PC端Chrome、Edge、华为浏览器等,移动端Kiwi、Yandex、Nightly、Iceraven等
 // @author       那年那兔那些事
 // @license      MIT License
 // @include      *://*.douyin.com/*
 // @include      *://*.iesdouyin.com/*
-// @require      https://greasyfork.org/scripts/438842-jquery-3-2-1/code/jquery@321.js?version=1010443
+// @require https://greasyfork.org/scripts/415581-jquery%E5%BA%93/code/jquery%E5%BA%93.js?version=866373
 // @grant        GM_download
 // @grant        GM_addStyle
 // @connect      *
@@ -17,8 +17,10 @@
 
 (function() {
 	//样式
-	GM_addStyle(".downloaderRootCss-0{--downloader-color-bg:#fff;--downloader-color-text:#000;--downloader-color-border:#f1f2f5}.downloaderRootCss-1{--downloader-color-bg:var(--color-page-bg);--downloader-color-text:var(--color-text-0-hover);--downloader-color-border:var(--color-navigation-bg)}#downloaderSettingPage-page{background:var(--downloader-color-bg);border-radius:20px;font-size:14px;color:var(--downloader-color-text);border:3px solid var(--downloader-color-border);z-index:999}#downloaderSettingPage-box{width:calc(100% - 40px);height:calc(100% - 40px);margin:20px}#downloaderSettingPage-head{width:100%;height:30px;margin-bottom:20px;text-align:center;font-size:20px}#downloaderSettingPage-body{width:100%;height:calc(100% - 100px);overflow:auto}#downloaderSettingPage-foot{width:100%;height:30px;margin-top:20px}.downloaderSettingPage-select{width:100%;background:var(--downloader-color-bg);color:var(--downloader-color-text);border-color:var(--downloader-color-text)}.downloaderSettingPage-btn{margin-right:12px;padding:0 10px;cursor:pointer;border:thin solid var(--downloader-color-text);border-radius:10px;display:inline-block}#downloaderSettingBtn{align-items:center;background-color:var(--color-bg-1);border-radius:18px;bottom:0;box-shadow:var(--shadow-2);cursor:pointer;display:flex;font-size:0;height:36px;justify-content:center;margin-top:8px;width:36px}");
-	
+	GM_addStyle(
+		".downloaderRootCss-0{--downloader-color-bg:#fff;--downloader-color-text:#000;--downloader-color-border:#f1f2f5}.downloaderRootCss-1{--downloader-color-bg:var(--color-page-bg);--downloader-color-text:var(--color-text-0-hover);--downloader-color-border:var(--color-navigation-bg)}#downloaderSettingPage-page{background:var(--downloader-color-bg);border-radius:20px;font-size:14px;color:var(--downloader-color-text);border:3px solid var(--downloader-color-border);z-index:999}#downloaderSettingPage-box{width:calc(100% - 40px);height:calc(100% - 40px);margin:20px}#downloaderSettingPage-head{width:100%;height:30px;margin-bottom:20px;text-align:center;font-size:20px}#downloaderSettingPage-body{width:100%;height:calc(100% - 100px);overflow:auto}#downloaderSettingPage-foot{width:100%;height:30px;margin-top:20px}.downloaderSettingPage-select{width:100%;background:var(--downloader-color-bg);color:var(--downloader-color-text);border-color:var(--downloader-color-text)}.downloaderSettingPage-btn{margin-right:12px;padding:0 10px;cursor:pointer;border:thin solid var(--downloader-color-text);border-radius:10px;display:inline-block}#downloaderSettingBtn{align-items:center;background-color:var(--color-bg-1);border-radius:18px;bottom:0;box-shadow:var(--shadow-2);cursor:pointer;display:flex;font-size:0;height:36px;justify-content:center;margin-bottom:8px;width:36px}"
+	);
+
 	//常量
 	const video_vid = "https://www.douyin.com/aweme/v1/play/?video_id={vid}&ratio={ratio}&line=0";
 	const video_data = "https://www.douyin.com/web/api/v2/aweme/iteminfo/?item_ids={id}";
@@ -54,6 +56,8 @@
 					res = ["channel", "video"];
 				} else if (Url.search("/video") !== -1) {
 					res = ["detail", "video"];
+				} else if (Url.search("/vsdetail") !== -1) {
+					res = ["vsdetail", "video"];
 				} else if (Url.search("/search") !== -1) {
 					res = ["search", "video"];
 				}
@@ -73,32 +77,48 @@
 			}
 		},
 		getData: function(target) {
-			if(currentPage==="detail"){
-				let res=document.querySelector("#RENDER_DATA");
-				res=JSON.parse(decodeURIComponent(res.innerText));
-				let temp=null;
-				for(let i in res){
-					try{
-						temp=res[i].aweme.detail;
-					}catch(e){
-						temp=null;
+			if (currentPage === "detail") {
+				let res = document.querySelector("#RENDER_DATA");
+				res = JSON.parse(decodeURIComponent(res.innerText));
+				let temp = null;
+				for (let i in res) {
+					try {
+						temp = res[i].aweme.detail;
+					} catch (e) {
+						temp = null;
 					}
-					if(temp){
+					if (temp) {
 						break;
 					}
 				}
-				if(!temp){
+				if (!temp) {
 					return false;
 				}
-				res=temp;
+				res = temp;
 				let data = {
 					"url": res.video.bitRateList[0].playApi,
 					"id": res.awemeId,
 					"name": res.desc,
 					"author": res.authorInfo.nickname
 				};
-				data.url=data.url.replace(/^((http|https):)?\/\//, "https://");
+				data.url = data.url.replace(/^((http|https):)?\/\//, "https://");
 				target.setAttribute("download-data", JSON.stringify(data));
+				return null;
+			}
+			if (currentPage === "vsdetail") {
+				let videoEle = document.querySelector("video");
+				let nameEle = document.querySelector(".HzHqxWVm");
+				let authorEle = document.querySelector(".ngajnKEz");
+				if (videoEle && nameEle && authorEle) {
+					let data = {
+						"url": videoEle.src ? videoEle.src : videoEle.firstChild.src,
+						"id": /\/\d{10,}/.exec(location.href)[0].replace("/", ""),
+						"name": nameEle.innerText.replaceAll("\n", " "),
+						"author": authorEle.innerText
+					};
+					data.url = data.url.replace(/^((http|https):)?\/\//, "https://");
+					target.setAttribute("download-data", JSON.stringify(data));
+				}
 				return null;
 			}
 			var id = target.getAttribute("download-id").trim();
@@ -107,18 +127,18 @@
 				tools.errorPause(false);
 				return false;
 			}
-			var ajaxUrl=video_data.replace("{id}", id);
-			if(/iesdouyin.com/i.test(location.hostname)){
-				ajaxUrl=ajaxUrl.replace("douyin.com","iesdouyin.com");
+			var ajaxUrl = video_data.replace("{id}", id);
+			if (/iesdouyin.com/i.test(location.hostname)) {
+				ajaxUrl = ajaxUrl.replace("douyin.com", "iesdouyin.com");
 			}
 			$.ajax({
 				url: ajaxUrl,
 				type: "GET",
-				dataType:"JSON",
+				dataType: "JSON",
 				async: false,
 				success: function(response) {
 					try {
-						if(typeof response === "string"){
+						if (typeof response === "string") {
 							response = JSON.parse(response);
 						}
 						JSON.stringify(response); //防止jsonRes不是JSON格式
@@ -147,15 +167,15 @@
 			data = data ? JSON.parse(data) : {};
 			console.log(data);
 			var url;
-			if(data.vid){
-				var ratio=set.get("videoQuality");
-				ratio=(ratio==="default")?"1080p":ratio;
-				url=video_vid.replace("{vid}",data.vid).replace("{ratio}",ratio);
-				if(/iesdouyin.com/i.test(location.hostname)){
-					url=url.replace("douyin.com","iesdouyin.com");
+			if (data.vid) {
+				var ratio = set.get("videoQuality");
+				ratio = (ratio === "default") ? "1080p" : ratio;
+				url = video_vid.replace("{vid}", data.vid).replace("{ratio}", ratio);
+				if (/iesdouyin.com/i.test(location.hostname)) {
+					url = url.replace("douyin.com", "iesdouyin.com");
 				}
-			}else if(data.url){
-				url=data.url;
+			} else if (data.url) {
+				url = data.url;
 			}
 			var id = data.id;
 			var name = data.name;
@@ -174,20 +194,23 @@
 					break;
 			}
 			fileName = fileName + ".mp4";
-			return {"url":url,"name":fileName};
+			return {
+				"url": url,
+				"name": fileName
+			};
 		},
 		downloadVideo: function(data) {
-			data=this.parseData(data);
-			if(set.get("download")==="auto"){
+			data = this.parseData(data);
+			if (set.get("download") === "auto") {
 				GM_download({
 					url: data.url,
 					name: data.name,
 					saveAs: true,
-					onerror:function(){
+					onerror: function() {
 						console.log("download error");
 					}
 				});
-			}else{
+			} else {
 				open(data.url);
 			}
 		},
@@ -302,8 +325,9 @@
 			btnBox.appendChild(downloadBtn);
 		},
 		list: function(BtnList, id) {
-			id=id.trim();
-			if (BtnList.getElementsByClassName(btn_class)[0]||BtnList.getElementsByClassName(liveBtn_class)[0]) {
+			id = id.trim();
+			if (BtnList.getElementsByClassName(btn_class)[0] || BtnList.getElementsByClassName(
+					liveBtn_class)[0]) {
 				return false;
 			}
 			var timeBox = BtnList.children[1];
@@ -326,7 +350,7 @@
 			} else {
 				newBtn.classList.add(btn_class);
 				newBtn.setAttribute("download-id", id)
-				newBtn.onclick = function(){
+				newBtn.onclick = function() {
 					createBtn.download(this);
 				};
 				BtnList.insertBefore(newBtn, timeBox);
@@ -336,8 +360,8 @@
 			var newBtnBox = BtnList.getElementsByClassName(btn_class)[0];
 			if (!newBtnBox) {
 				let newBtn = BtnList.children[1].cloneNode(true);
-				let pathEle=newBtn.children[0].children[0].children[0].cloneNode(true);
-				newBtn.children[0].children[0].innerHTML="";
+				let pathEle = newBtn.children[0].children[0].children[0].cloneNode(true);
+				newBtn.children[0].children[0].innerHTML = "";
 				newBtn.children[0].children[0].appendChild(pathEle);
 				newBtn.children[0].children[0].children[0].setAttribute("d",
 					"M14 9h8v8h-8z M10 17L26 17 18 26z M7 26h22v2h-22z M7 22h2v4h-2z M27 22h2v4h-2z");
@@ -345,7 +369,7 @@
 				newBtnBox = document.createElement("div");
 				newBtnBox.classList.add(btn_class);
 				newBtnBox.setAttribute("download-id", id);
-				newBtnBox.onclick = function(){
+				newBtnBox.onclick = function() {
 					createBtn.download(this);
 				};
 				newBtnBox.appendChild(newBtn);
@@ -355,16 +379,27 @@
 				newBtnBox.removeAttribute("download-data");
 			}
 		},
-		video: function(BtnList, id) {
+		video: function(BtnList, id, isVS) { //isVS:是否综艺详情页
+			var cloneNum = 2,
+				textClass = "Uehud9DZ";
+			if (isVS === true) {
+				cloneNum = 0;
+				textClass = "";
+			}
 			if (!document.getElementsByClassName(btn_class)[0]) {
-				let newBtn = BtnList.children[2].cloneNode(true);
+				let newBtn = null;
+				if (isVS === true) {
+					newBtn = BtnList.children[0].cloneNode(true);
+				} else {
+					newBtn = BtnList.children[2].cloneNode(true);
+					newBtn.children[1].setAttribute("class", "Uehud9DZ");
+				}
 				newBtn.classList.add(btn_class);
 				newBtn.setAttribute("download-id", id);
 				newBtn.children[0].children[0].setAttribute("d",
 					"M12 7h8v8h-8z M8 15L24 15 16 24z M5 24h22v2h-22z M5 20h2v4h-2z M25 20h2v4h-2z");
-				newBtn.children[1].setAttribute("class", "iR6dOMAO");
 				newBtn.children[1].innerHTML = "下载";
-				newBtn.onclick = function(){
+				newBtn.onclick = function() {
 					createBtn.download(this);
 				};
 				BtnList.appendChild(newBtn);
@@ -541,8 +576,8 @@
 			if (document.getElementById("downloaderSettingBtn")) {
 				return false;
 			}
-			//nxsdxGGH:video;ohjo+Xk3:live;_9f1b1dc461877bc141b6e50012a13f5d-scss:search
-			var boxClassArray = ["nxsdxGGH", "ohjo+Xk3", "_9f1b1dc461877bc141b6e50012a13f5d-scss"],
+			//s2O1MLsL:video;ohjo+Xk3:live;nxsdxGGH:search
+			var boxClassArray = ["s2O1MLsL", "ohjo+Xk3", "nxsdxGGH"],
 				box;
 			for (let i in boxClassArray) {
 				box = document.getElementsByClassName(boxClassArray[i])[0];
@@ -574,9 +609,9 @@
 		},
 		link: function() {
 			var shareBoxList = document.getElementsByClassName("VYAVbHvT");
-			if(shareBoxList.length>0){
-				for(let i=0;i<shareBoxList.length;i++){
-					let shareBox=shareBoxList[i];
+			if (shareBoxList.length > 0) {
+				for (let i = 0; i < shareBoxList.length; i++) {
+					let shareBox = shareBoxList[i];
 					if (shareBox && shareBox.name !== "newShareBox") {
 						var tokenBtn = shareBox.children[1];
 						var linkBtn = tokenBtn.cloneNode(true);
@@ -610,7 +645,8 @@
 						linkBtn.style.marginLeft = "1px";
 						tokenBtn.innerText = "口令";
 						var btnWidth = Math.ceil(getComputedStyle(tokenBtn).minWidth.replace("px", ""));
-						var textWidth = Math.floor(getComputedStyle(shareBox.firstChild).width.replace("px", ""));
+						var textWidth = Math.floor(getComputedStyle(shareBox.firstChild).width.replace("px",
+							""));
 						shareBox.firstChild.style.width = (textWidth - btnWidth - 1) + "px";
 						shareBox.lastChild.style.borderRadius = "0px";
 						shareBox.appendChild(linkBtn);
@@ -744,15 +780,15 @@
 				return false;
 			}
 			Timer = setInterval(function() {
-				var a = document.querySelectorAll("._2NJWgK5p");
+				var a = document.querySelectorAll(".aKgCOHgk");
 				if (a.length !== 0) {
 					for (let i = 0; i < a.length; i++) {
 						let id = a[i].parentElement.querySelector("a");
-						if(id){
-							id=id.href;
-							id=id.slice(id.search("video/") + 6).split("/")[0].split("?")[0];
-						}else{
-							id="";
+						if (id) {
+							id = id.href;
+							id = id.slice(id.search("video/") + 6).split("/")[0].split("?")[0];
+						} else {
+							id = "";
 						}
 						createBtn.list(a[i], id);
 					}
@@ -772,10 +808,10 @@
 			}
 			var BtnList, newBtnBox, presentObj, videoURL, btnObj;
 			Timer = setInterval(function() {
-				BtnList = document.getElementsByClassName("TvKp5rIf");
-				if (BtnList.length>0) {
+				BtnList = document.getElementsByClassName("uMeDuDBE");
+				if (BtnList.length > 0) {
 					presentObj = document.getElementsByClassName(
-						"swiper-slide _79rCAeWZ swiper-slide-active")[0];
+						"swiper-slide swiper-slide-active")[0];
 					var videoID = presentObj.getElementsByClassName(
 						"xgplayer-icon content-wrapper hasMarginRight")[0].href;
 					videoID = videoID.split("video/")[1].split("/")[0].split("?")[0];
@@ -798,7 +834,7 @@
 		detail: function() {
 			init.main();
 			Timer = setInterval(function() {
-				var BtnList = document.getElementsByClassName("HF-f8Lg-")[0];
+				var BtnList = document.getElementsByClassName("a30pLzw4")[0];
 				BtnList = BtnList.children[0];
 				var id = location.href;
 				id = id.slice(id.search("video/") + 6);
@@ -811,8 +847,50 @@
 			}, 200);
 			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},
+		vsdetail: function() {
+			init.main();
+			Timer = setInterval(function() {
+				var BtnList = document.getElementsByClassName("XHB4XbHj")[0];
+				if (BtnList) {
+					BtnList = BtnList.children[0];
+				}
+				var id = location.href;
+				id = id.slice(id.search("vsdetail/") + 9);
+				id = id.split("/")[0].split("?")[0];
+				if (BtnList && BtnList.children[0] && id) {
+					createBtn.video(BtnList, id, true);
+				}
+				createBtn.change();
+				createBtn.link();
+			}, 200);
+			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
+		},
 		search: function() {
-			this.home();
+			init.main();
+			if (typeof jQuery !== "function") {
+				let msg =
+					"部分功能无法启动，可能的原因:\n(1)当前浏览器不支持jQuery，请使用主流浏览器并加载主流的脚本管理插件\n(2)当前远程jQuery库无法访问，请稍后再试";
+				console.log(msg);
+				alert(msg);
+				return false;
+			}
+			Timer = setInterval(function() {
+				var a = document.querySelectorAll("._2NJWgK5p");
+				if (a.length !== 0) {
+					for (let i = 0; i < a.length; i++) {
+						let id = a[i].parentElement.querySelector("a");
+						if (id) {
+							id = id.href;
+							id = id.slice(id.search("video/") + 6).split("/")[0].split("?")[0];
+						} else {
+							id = "";
+						}
+						createBtn.list(a[i], id);
+					}
+				}
+				createBtn.change();
+			}, 500);
+			console.log("抖音视频下载器(" + Page + "页)启动,定时器(id:" + Timer + ")开启");
 		},
 		livehome: function() {
 			init.main();
@@ -863,6 +941,9 @@
 					break;
 				case "detail":
 					this.detail();
+					break;
+				case "vsdetail":
+					this.vsdetail();
 					break;
 				case "search":
 					this.search();
@@ -1001,7 +1082,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.36.2"
+					"value": "v1.37"
 				}, {
 					"name": "视频文件名",
 					"type": "choice",
@@ -1097,7 +1178,7 @@
 					"name": "当前版本",
 					"type": "text",
 					"key": "version",
-					"value": "v1.36.2"
+					"value": "v1.37"
 				}, {
 					"name": "沉浸观看",
 					"type": "choice",
@@ -1202,7 +1283,7 @@
 		},
 		data: {},
 		opt: {},
-		rootClass:"downloaderRootCss-0",
+		rootClass: "downloaderRootCss-0",
 		get: function(key) {
 			if (key) {
 				return this.data[key];
@@ -1229,18 +1310,18 @@
 			}
 			switch (type) {
 				case "share":
-					this.data = $.extend(true,{},this.baseData.video);
-					this.opt = $.extend(true,{},this.baseOpt.video);
+					this.data = $.extend(true, {}, this.baseData.video);
+					this.opt = $.extend(true, {}, this.baseOpt.video);
 					break;
 				case "video":
-					this.rootClass="downloaderRootCss-1";
-					this.data = $.extend(true,{},this.baseData.video);
-					this.opt = $.extend(true,{},this.baseOpt.video);
+					this.rootClass = "downloaderRootCss-1";
+					this.data = $.extend(true, {}, this.baseData.video);
+					this.opt = $.extend(true, {}, this.baseOpt.video);
 					break;
 				case "live":
-					this.rootClass="downloaderRootCss-1";
-					this.data = $.extend(true,{},this.baseData.live);
-					this.opt = $.extend(true,{},this.baseOpt.live);
+					this.rootClass = "downloaderRootCss-1";
+					this.data = $.extend(true, {}, this.baseData.live);
+					this.opt = $.extend(true, {}, this.baseOpt.live);
 					break;
 				default:
 					this.data = null;
@@ -1254,7 +1335,7 @@
 			var newData;
 			if (localData) {
 				localData = JSON.parse(localData);
-				this.data = $.extend(true,{},set.get(), localData);
+				this.data = $.extend(true, {}, set.get(), localData);
 			} else {
 				this.save(this.data);
 			}
@@ -1262,11 +1343,11 @@
 		reset: function() {
 			var backupData;
 			if (/livehome|livedetail/i.test(currentPage)) {
-				backupData = $.extend(true,{},set.baseData.live);
+				backupData = $.extend(true, {}, set.baseData.live);
 			} else {
-				backupData = $.extend(true,{},set.baseData.video);
+				backupData = $.extend(true, {}, set.baseData.video);
 			}
-			set.data = $.extend(true,{},backupData);
+			set.data = $.extend(true, {}, backupData);
 			set.close();
 			set.create();
 		},
@@ -1326,7 +1407,8 @@
 			var pageLeft = (bodyWidth - pageWidth) / 2;
 			var pageTop = (bodyHeight - pageHeight) / 2;
 			page.classList.add(set.rootClass);
-			page.style = "width:" + pageWidth + "px;height:" + pageHeight +"px;position:fixed;left:" +pageLeft + "px;top:" + pageTop +"px;";
+			page.style = "width:" + pageWidth + "px;height:" + pageHeight + "px;position:fixed;left:" +
+				pageLeft + "px;top:" + pageTop + "px;";
 			box.appendChild(set.createHead());
 			box.appendChild(set.createBody());
 			box.appendChild(set.createFoot());
@@ -1383,7 +1465,7 @@
 				content.setAttribute("opt-key", data.key);
 				var choice = data.value;
 				var choiceValue = set.get(data.key);
-				var choiceHtml ="<select class='downloaderSettingPage-select'>";
+				var choiceHtml = "<select class='downloaderSettingPage-select'>";
 				for (let i in choice) {
 					choiceHtml += "<option choice-key='" + choice[i].key + "'";
 					if (choiceValue === choice[i].key) {
@@ -1468,34 +1550,44 @@
 				})
 			}
 			//质量
-			var qualityBtn= page.querySelectorAll("div[opt-key=videoQuality]")[0];
-			if(qualityBtn&&currentPage==="detail"){
+			var qualityBtn = page.querySelectorAll("div[opt-key=videoQuality]")[0];
+			if (qualityBtn && currentPage === "detail") {
 				qualityBtn.removeAttribute("opt-key");
-				qualityBtn.innerHTML="默认最高质量";
-				qualityBtn.style="width: 100px;margin: 0px 0px 8px;display: inline-block;border: 1px solid var(--downloader-color-text);padding-left: 4px;cursor: pointer";
-				qualityBtn.parentElement.setAttribute("opt-type","text");
+				qualityBtn.innerHTML = "默认最高质量";
+				qualityBtn.style =
+					"width: 100px;margin: 0px 0px 8px;display: inline-block;border: 1px solid var(--downloader-color-text);padding-left: 4px;cursor: pointer";
+				qualityBtn.parentElement.setAttribute("opt-type", "text");
 				qualityBtn.addEventListener("click", function() {
 					alert("默认获取最高分辨率视频，不可更改");
 				})
+			} else if (qualityBtn && currentPage === "vsdetail") {
+				qualityBtn.removeAttribute("opt-key");
+				qualityBtn.innerHTML = "默认分辨率";
+				qualityBtn.style =
+					"width: 100px;margin: 0px 0px 8px;display: inline-block;border: 1px solid var(--downloader-color-text);padding-left: 4px;cursor: pointer";
+				qualityBtn.parentElement.setAttribute("opt-type", "text");
+				qualityBtn.addEventListener("click", function() {
+					alert("请通过官方播放器调整视频分辨率");
+				})
 			}
 		},
-		extraEventList:{
-			export:function(){
+		extraEventList: {
+			export: function() {
 				let exportData = "";
 				let allDownloadBtn = document.getElementsByClassName(btn_class);
 				for (let i = 0; i < allDownloadBtn.length; i++) {
 					let data = allDownloadBtn[i].getAttribute("download-data");
 					if (data) {
-						data=tools.parseData(data);
-						data=data.url;
+						data = tools.parseData(data);
+						data = data.url;
 						data = (i + 1) !== allDownloadBtn.length ? (data + ",") : data;
 						exportData += data;
 					}
 				}
 				tools.toClipboard(exportData, "视频地址已批量导出到剪贴板");
 			},
-			refresh:function(noAlert){
-				if(!noAlert){
+			refresh: function(noAlert) {
+				if (!noAlert) {
 					alert("刷新下载按钮需要一定的时间，点击确定开始重载链接");
 				}
 				var downloadBtn = document.querySelectorAll("." + btn_class);
